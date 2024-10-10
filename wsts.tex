@@ -5,11 +5,30 @@
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{amssymb}
+\usepackage{amsthm}
 \usepackage{mathtools}
 \usepackage[symbol]{footmisc}
 \usepackage{caption}
 
+\usepackage{enumitem}               % In texlive-latex-extra
+\usepackage[mathcal]{eucal}                  % Changes mathcal script
+\usepackage[english]{babel}         % English blindtext
+\usepackage{mathtools}
+\usepackage[symbol]{footmisc}
+% \usepackage{subcaption}
+\usepackage{orcidlink}
+\usepackage{tabularx,booktabs}
+\usepackage[operators, sets]{cryptocode}
 \renewcommand{\thefootnote}{\fnsymbol{footnote}}
+
+\newtheorem{thm}{Theorem}[section]
+\newtheorem{lem}[thm]{Lemma}
+
+\theoremstyle{definition}
+\newtheorem{definition}[thm]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{rem}[thm]{Remark}
 
 \newcommand\Set[2]{\{\,#1\mid#2\,\}}
 \newcommand\underoverset[3]{\underset{#1}{\overset{#2}{#3}}}
@@ -232,7 +251,6 @@ Finally, each party $i$ can construct its signature share $z_i$:
   z_i = d_i + \rho_i \cdot e_i + s_i \cdot c \cdot \lambda_i
 \end{align}
 
-
 \subsubsection{
   Aggregating the Group Signature
 }
@@ -430,7 +448,6 @@ In the table, $N_s$ will refer to the number of signers, which is $N$ in FROST a
   \end{tabular}
 \end{center}
 
-
 \section{
   Robustness
 }
@@ -456,7 +473,6 @@ Parties who do not return signatures, or return invalid signatures, are removed 
 As before, if the aggregate signature is valid, round $i$ is complete.  Otherwise, we begin a new session $j+2$, and continue in the same vein.  Since each session will either complete or remove some parties from $A$, this algorithm will eventually terminate.  When $|A| < T$, signing round $i$ has failed.
 
 When running a FIRE round with WSTS vs FROST, the only difference is that we must count the number of keys controlled by each party who responds with a nonce in every session.  Only when the sum of keys controlled by the given nonces equals or exceeds $T$ do we form $S_j$ and begin the signing portion of the session.  
-
 
 \subsection{
   ROAST
@@ -533,13 +549,165 @@ The author would like to thank Alie Slade for initial work on the WSTS algorithm
   Security
 }
 
-\subsection{
-  Correctness
-}
+In this section we prove the security of WSTS. We demonstrate
+security of WSTS against the standard notion of existential unforgeability against chosen message attacks (EUF-CMA) by reducing the security of WSTS to the security of FROST, which in turn reduces to the the difficulty of computing the discrete logarithm problem.
 
-In Sections 4.4.1 and 2.7.5, we show how WSTS and FROST reduce to a Schnorr proof.  This is sufficient to show correctness.  
+\subsection{Adversary Powers}
 
+We take the forger $\mathcal{F}$ to be a routine that with non-negligible probability $\epsilon$ and within a polynomial amount of time $\tau$, can do the following:
+\begin{itemize}
+    \item \textbf{Oracle Access}: \( \mathcal{F} \) can query a signing oracle with messages of their choice and receive valid signatures.
+    \item \textbf{Protocol Participation}: \( \mathcal{F} \) follows WSTS by being a participant to obtain information useful for forgery.
+    \item \textbf{Output}: \( \mathcal{F} \) outputs a pair \((m, \sigma)\), where \(m\) is a message not previously signed by the oracle during \( \mathcal{F} \)'s attack, and \(\sigma\) is a valid signature for \(m\).
+\end{itemize}
 
+When performing its forgery attack, we grant $\mathcal{F}$ the role of the signature aggregator. Without loss of generality, we assume $\mathcal{F}$ controls $C$ compromised participants with combined key share equal to $t-1$, and has full power over how these participants behave, what secret and public values they generate, etc. Moreover, we assume the $t$-th participant controls only one share.
+
+\subsection{From WSTS to FROST}
+
+As mentioned above, our security proof relies on a reduction of WSTS to FROST. To do so, we map configurations of WSTS to configurations of FROST, where a \textbf{configuration} is the total number of participants, the threshold, the number of key IDs, the number of secret keys, and private nonces among the participants.
+
+Before start we introduce a useful definition. Let a \textbf{dummy participant} be a participant where their secret polynomial coefficients and private nonces are all zero. These participants abide by the FROST protocol in every other way.
+
+\begin{lem}[Mapping between WSTS and FROST]\label{lemma:wsts-frost-equivalence}
+    Suppose we are given a valid configuration for $n$ participants in WSTS and $\kappa$ key IDs. Then we can uniquely identify a configuration of FROST with $\kappa$ participants with the following properties:
+    \begin{enumerate}
+        \item the participants have the same secret shares as in the WSTS configuration,
+        \item the first $n$ participants have the same secret polynomial as in WSTS,
+        \item the remaining $\kappa - n$ participants are dummy participants,
+        \item the group private and public keys are the same,
+        \item the group can produce the same valid signature given the same message.
+    \end{enumerate}
+\end{lem}
+
+\begin{proof} 
+Let $t$ denote the threshold, $\kappa > n$ denote the number of key IDs, and $\{ f_i \}_{i\in [1,n]}$ denote the private polynomials of the WSTS participants (the WSTS protocol with $\kappa = n$ is the same as the FROST protocol so we skip it). To find the FROST configuration, we will have $\kappa$ participants. Make the first $n$ participants in the FROST configuration have the same private polynomials as those in the WSTS configuration. The remaining $\kappa - n$ participants are all dummy participants where
+\begin{align}\label{equation:dummy-participant-polynomial}
+    f_i(x) \equiv 0, \qquad i \in [n+1, \kappa].
+\end{align}
+%%
+In the FROST configuration just described, we can compute the group private key as:
+\begin{align}
+    f(0) = \sum_{i=1}^n f_i(0) + \sum_{i = n+1}^\kappa f_i(0) = \sum_{i=1}^n f_i(0),
+\end{align}
+%%
+where we used \eqref{equation:dummy-participant-polynomial} in the final equality. This implies that the public and private key in this FROST configuration is the same as the public and private key in the WSTS configuration.
+
+These dummy participants still send and receive secret shares during DKG. Specifically, they send $(j, f_i(j)) = (j, 0)$ to participant $j$. This implies that the $i$-th participant has secret share
+\begin{align}
+    s_i = \sum_{k=1}^\kappa f_k(i) = \sum_{k=1}^n f_k(i),
+\end{align}
+%%
+which is the same as the secret key share definition for the $i$-th key in WSTS \eqref{equation:secret-share-definition}.
+
+When it comes time to sign message $m$, recall that the signature in WSTS would be
+\begin{align}\label{equation:signature-wsts-appendix}
+    z & = \sum_{i \in S}^{} z_{i} 
+   = \sum_{i \in S}^{} d_{i} + \rho_{i} \cdot e_{i} + c \cdot \sum_{k \in K_i}^{} \lambda_{k} \cdot s_{k}
+\end{align}
+%%
+where $S$ is the signing set, $d_i$ and $e_i$ are private nonces, $K_i$ is the key ID set for participant $i$, $\rho_i$ is a hash of the message with identifier $i$ and the nonces \eqref{equation:message-participant-hash}, and $c$ is a hash of the message with the public key \eqref{equation:message-public-key-hash}. Luckily, equation \eqref{equation:signature-wsts-appendix} tells us who to include in the signature on the FROST side to generate the same signature. Specifically, we select the participants in $S$, along with the dummy participants identified by the key IDs in $\bigcup_{i \in S} K_i$. These dummy participants do not contribute to the $\sum_{i \in S}^{} d_{i} + \rho_{i} \cdot e_{i}$ portion of the signature in \eqref{equation:signature-wsts-appendix}, since their private nonces are zero. Thus the FROST signature is:
+\begin{align}\label{equation:signature-frost-appendix}
+    % z & %= \sum_{i \in S_{}}^{} z_{i} 
+   \underbrace{\sum_{i \in S}^{} d_{i} + \rho_{i} \cdot e_{i} + c \cdot \lambda_{i} \cdot s_{i}}_{\text{From normal participants}} + \underbrace{\sum_{k \in K_i - \{i\}}^{} c \cdot \lambda_{k} \cdot s_{k}}_{\text{From dummy participants}},
+\end{align}
+%%
+where we assumed WLOG that $K_i = \{ i \} \cup K_i^{\prime}$ with $K_i^\prime \subset [n + 1, \kappa]$. Since the signature \eqref{equation:signature-wsts-appendix} is identical to the one generated in WSTS, \eqref{equation:wsts-signature-definition}, the proof is complete.
+\end{proof}
+
+%%
+% \begin{figure}[!ht]
+% \centering
+%     \begin{tikzpicture}[remember picture, node distance=3cm,
+%       inner/.style={circle,solid,draw=blue!50,thick,inner sep=1pt},
+%       outer/.style={circle,dashed,thick,draw=black,inner sep=2pt}
+%       ]
+%       \node[inner,draw=blue] (E1) at (0.0, 2.0) {};
+
+%       \node[] (E2) at (1.4, 1.5) {
+%         \begin{tikzpicture}[node distance=0.5cm]
+%           \node [inner,draw=blue] (bi) {};
+%           \node [inner,draw=blue,below left of=bi] (biii) {};
+%           \node [inner,draw=blue,below of=biii] (bii) {};
+%           % \draw[inner,red,thick] (bi) -- (bii) -- (biii) -- (bi);
+%         \end{tikzpicture}
+%       };
+%       \node[outer,draw=black] (E3) at (-0.4, 0.4) {
+%         \begin{tikzpicture}[node distance=0.25cm]
+%           \node [inner,draw=blue] (ci)  {};
+%           \node [inner,draw=gray,below right of=ci] (cii) {};
+%           \node [inner,draw=gray,below left of=cii] (ciii) {};
+%           \node [inner,draw=gray,left of=ciii] (civ) {};
+%           \node [inner,draw=gray,above of=civ] (cv) {};
+%         \end{tikzpicture}
+%       };
+%       \node[] (E4) at (-1.5, 1.6) {
+%         \begin{tikzpicture}[node distance=0.5cm]
+%           \node [inner,draw=blue] (di)  {};
+%           \node [inner,draw=blue,below of=di] (dii) {};
+%           \node [inner,draw=blue,below left of=dii] (diii) {};
+%           % \draw[inner,red,thick] (di) -- (dii) -- (diii) -- (di) -- (diii);
+%         \end{tikzpicture}
+%       };
+%       % \draw[black,thick] (E1) -- (E2) -- (E3) -- (E4) -- (E1);
+%       % \draw[black,thick,->] (E2) -- (E4);
+%       % \draw[black,thick,->] (E1) -- (E3);
+%     \end{tikzpicture}
+% \caption{FROST with Full participants in blue and dummy participants in grey}\label{after clustering}
+% \end{figure}
+%%
+
+% \begin{lem}[WSTS information exchange]
+%     Let $\mathfrak{W}$ be a valid configuration for $n$ participants in WSTS and key IDs $\{ K_i \}_{i \in [1,n]}$ and let $\mathfrak{F}$ be the analogous FROST configuration from Lemma~\ref{lemma:wsts-frost-equivalence}.
+% \end{lem}
+
+% \begin{proof}
+    
+% \end{proof}
+
+\begin{rem}
+    We can place further restrictions on our dummy participants. Suppose dummy participants:
+    \begin{enumerate}
+        \item Did not send polynomial commitments and secret shares during DKG (since they're all zero anyway).
+        \item Sent in secret signing shares whenever participants $i$ sent in secret signing shares, for some fixed $i \in [1, n]$.
+    \end{enumerate}
+    In this case we would see by Lemma~\ref{lemma:wsts-frost-equivalence} that WSTS with $n$ participants, threshold $t$, and key distribution $\{K_i\}_{i\in [1,n]}$ is really just FROST with $n$ regular participants and $\kappa - n$ dummy participants, where regular participant $i$ controls dummy participants with IDs in $K_i - \{ i\}$. The security of WSTS relies on the fact that FROST is $(\tau, \epsilon)$-unforgeable even if an adversary controlled $\kappa - 1$ participants, assuming the discrete logarithm problem is $(\tau, \epsilon)$-hard. 
+    %A FROST adversary with control over $\kappa - 1$ keys could always simulate WSTS.
+\end{rem}
+
+\subsection{EUF-CMA proof of WSTS}
+
+We say a problem is $(\tau, \epsilon)$-hard if, with probability $\epsilon$, it takes $\tau$ amount of time to compute. We now give a security proof of WSTS. When we say WSTS or FROST is $(\tau, \epsilon)$-secure, we are saying that with probability $\epsilon$ it takes $\tau$ amount of time to compute a forgery of a signature of a chosen message.
+
+\begin{thm}[EUF-CMA of WSTS]
+    Assume the discrete logarithm problem is $(\tau, \epsilon)$-hard. Then WSTS is $(\tau, \epsilon)$-secure if and only if FROST is $(\tau, \epsilon)$-secure.
+\end{thm}
+
+\begin{proof}
+Suppose WSTS is $(\tau, \epsilon)$-secure. Then WSTS where the key sets are $K_i = \{i\}$ would be $(\tau, \epsilon)$-secure. Since this protocol is FROST, we see that FROST is $(\tau, \epsilon)$-secure.
+
+The proof that FROST being $(\tau, \epsilon)$-secure implies WSTS being $(\tau, \epsilon)$-secure is a proof by contradiction. Suppose there exists a forger $\mathcal{F}$ for WSTS where there are $n$ participants and some distribution of key IDs $\{ K_i\}_{i\in [1, n]}$, and threshold $\kappa$, where the forger controlled the participants identified by the set $C$ with a total of $\sum_{i \in C}|K_i| \leq \kappa - 1$ keys. That is, assume $\mathcal{F}$ could construct a forgery $\sigma$ for a public key $Y$ with a chosen message $m$ with probability $\epsilon$ and time $\tau$ but does not control the threshold of secret shares. Furthermore, assume the stipulations in the adversary powers section for the forger.
+
+\begin{setup}{Step 1}
+    Setup the FROST topology for $\mathcal{F}^\prime$.
+\end{setup}
+
+Construct $\kappa$ participants in a FROST protocol with threshold $\kappa$ and give an adversary control of $\kappa - 1$ participants. We now define how a forger $\mathcal{F}^\prime$ for a FROST configuration that could generate a forgery with the same effort as the WSTS forger.
+
+\begin{setup}{Step 2}
+    Distributed Key Generation (DKG) under $\mathcal{F}^\prime$.
+\end{setup}
+
+The FROST forger $\mathcal{F}^\prime$ is a routine that takes the same inputs as the WSTS forger $\mathcal{F}$, including the particular WSTS setup that $\mathcal{F}$ needs. $\mathcal{F}^\prime$ first supplies these inputs into $\mathcal{F}$ to do WSTS DKG. It then use Lemma~\ref{lemma:wsts-frost-equivalence} to construct a FROST configuration that is analogous to the WSTS forger's configuration. Afterwards, the FROST forger $\mathcal{F}^\prime$ has access to the same secret shares and the same public key as the WSTS forger.
+
+\begin{setup}{Step 3}
+    $\mathcal{F}^\prime$ forges a signature.
+\end{setup}
+
+We must detail the routine that generates a forgery of a signature in our chosen FROST configuration. Luckily, we have routine that forges signatures, namely $\mathcal{F}$. It takes as input the private key shares it controls, private nonces, the public key, an oracle producing valid signatures, and can produce a valid signature for message $m$ of it's choice. It does this using the information under it's control and by interacting with the participant(s) not within its control. Since $\mathcal{F}^\prime$ has access to the same information (by Lemma~\ref{lemma:wsts-frost-equivalence}) and interacts with the participant(s) not within its control in the same way (since WSTS is a derivative of FROST), it can carry out the same procedure as $\mathcal{F}$ to forge a signature.
+
+Thus we have constructed a FROST forger that $(\tau, \epsilon)$-breaks the unforgeability property of FROST. This violates Theorem \cite[\S A.2]{frost:2020}, yielding the desired contradiction.
+\end{proof}
 
 \end{document}
 
