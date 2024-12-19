@@ -286,11 +286,11 @@ pub trait Coordinator: Clone + Debug + PartialEq + StateMachine<State, Error> {
         party_polynomials: Vec<(u32, PolyCommitment)>,
     ) -> Result<(), Error>;
 
-    /// Process inbound messages
-    fn process_inbound_messages(
+    /// Check for timeout and maybe process a single message
+    fn process(
         &mut self,
-        packets: &[Packet],
-    ) -> Result<(Vec<Packet>, Vec<OperationResult>), Error>;
+        packets: Option<Packet>,
+    ) -> Result<(Option<Packet>, Option<OperationResult>), Error>;
 
     /// Retrieve the aggregate public key
     fn get_aggregate_public_key(&self) -> Option<Point>;
@@ -636,17 +636,21 @@ pub mod test {
         }
         for coordinator in coordinators.iter_mut() {
             // Process all coordinator messages, but don't bother with propogating these results
-            let _ = coordinator.process_inbound_messages(messages)?;
+            for message in messages {
+                let _ = coordinator.process(Some(message.clone())).unwrap();
+            }
         }
         let mut results = vec![];
         let mut messages = vec![];
         for (i, coordinator) in coordinators.iter_mut().enumerate() {
-            let (outbound_messages, outbound_results) =
-                coordinator.process_inbound_messages(&inbound_messages)?;
-            // Only propogate a single coordinator's messages and results
-            if i == 0 {
-                messages.extend(outbound_messages);
-                results.extend(outbound_results);
+            for inbound_message in &inbound_messages {
+                let (outbound_message, outbound_result) =
+                    coordinator.process(Some(inbound_message.clone()))?;
+                // Only propogate a single coordinator's messages and results
+                if i == 0 {
+                    messages.extend(outbound_message);
+                    results.extend(outbound_result);
+                }
             }
         }
         Ok((messages, results))
