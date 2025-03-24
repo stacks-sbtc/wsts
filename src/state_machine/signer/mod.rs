@@ -1363,7 +1363,7 @@ pub mod test {
         let dup_private_share = DkgPrivateShares {
             dkg_id: 0,
             signer_id: 1,
-            shares: vec![(1, HashMap::new()), (2, HashMap::new())],
+            shares: vec![(2, HashMap::new())],
         };
         signer
             .dkg_private_shares(&dup_private_share, &mut rng)
@@ -1415,7 +1415,7 @@ pub mod test {
         let dup_private_share = DkgPrivateShares {
             dkg_id: 0,
             signer_id: 1,
-            shares: vec![(1, HashMap::new()), (2, HashMap::new())],
+            shares: vec![(1, HashMap::new())],
         };
         signer
             .dkg_private_shares(&dup_private_share, &mut rng)
