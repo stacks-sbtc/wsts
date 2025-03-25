@@ -481,6 +481,15 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 return Ok(());
             };
 
+            let have_shares = self
+                .dkg_public_shares
+                .contains_key(&dkg_public_shares.signer_id);
+
+            if have_shares {
+                info!(signer_id = %dkg_public_shares.signer_id, "received duplicate DkgPublicShares");
+                return Ok(());
+            }
+
             self.dkg_wait_signer_ids
                 .remove(&dkg_public_shares.signer_id);
 
@@ -519,6 +528,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 warn!(signer_id = %dkg_private_shares.signer_id, "No public key in config");
                 return Ok(());
             };
+
+            let has_received_shares = self
+                .dkg_private_shares
+                .contains_key(&dkg_private_shares.signer_id);
+            if has_received_shares {
+                info!(signer_id = %dkg_private_shares.signer_id, "received duplicate DkgPrivateShares");
+                return Ok(());
+            }
 
             self.dkg_wait_signer_ids
                 .remove(&dkg_private_shares.signer_id);
@@ -839,6 +856,16 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 .message_nonces
                 .entry(nonce_response.message.clone())
                 .or_default();
+
+            let have_nonces = nonce_info
+                .public_nonces
+                .contains_key(&nonce_response.signer_id);
+
+            if have_nonces {
+                info!(signer_id = %nonce_response.signer_id, "Received duplicate NonceResponse");
+                return Ok(());
+            }
+
             nonce_info
                 .public_nonces
                 .insert(nonce_response.signer_id, nonce_response.clone());
@@ -951,6 +978,15 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
 
             if *signer_key_ids != sig_share_response_key_ids {
                 warn!(signer_id = %sig_share_response.signer_id, "SignatureShareResponse key_ids didn't match config");
+                return Ok(());
+            }
+
+            let have_shares = self
+                .signature_shares
+                .contains_key(&sig_share_response.signer_id);
+
+            if have_shares {
+                info!(signer_id = %sig_share_response.signer_id, "received duplicate SignatureShareResponse");
                 return Ok(());
             }
 
@@ -1353,12 +1389,14 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
 #[cfg(test)]
 /// Test module for coordinator functionality
 pub mod test {
+    use super::*;
     use crate::{
         curve::{point::Point, scalar::Scalar},
         net::{
             DkgBegin, DkgFailure, DkgPrivateShares, DkgPublicShares, Message, NonceRequest, Packet,
-            SignatureType,
+            SignatureShareResponse, SignatureType,
         },
+        schnorr::ID,
         state_machine::{
             coordinator::{
                 fire::Coordinator as FireCoordinator,
@@ -1418,6 +1456,267 @@ pub mod test {
     #[test]
     fn start_dkg_round_v2() {
         start_dkg_round::<FireCoordinator<v2::Aggregator>>();
+    }
+
+    #[test]
+    fn dkg_public_share_v1() {
+        dkg_public_share::<v1::Aggregator, v1::Signer>();
+    }
+
+    #[test]
+    fn dkg_public_share_v2() {
+        dkg_public_share::<v1::Aggregator, v2::Signer>();
+    }
+
+    /// test basic insertion and detection of duplicates for DkgPublicShares
+    fn dkg_public_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
+        let mut rng = create_rng();
+        let (coordinators, _) = setup::<FireCoordinator<Aggregator>, Signer>(2, 1);
+        let mut coordinator: FireCoordinator<Aggregator> = coordinators[0].clone();
+
+        coordinator.state = State::DkgPublicGather;
+        let public_shares = DkgPublicShares {
+            dkg_id: 0,
+            signer_id: 0,
+            comms: vec![(
+                0,
+                PolyCommitment {
+                    id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                    poly: vec![],
+                },
+            )],
+        };
+        let packet = Packet {
+            msg: Message::DkgPublicShares(public_shares.clone()),
+            sig: Default::default(),
+        };
+        coordinator.gather_public_shares(&packet).unwrap();
+        assert_eq!(1, coordinator.dkg_public_shares.len());
+
+        // check that a duplicate public share is ignored
+        let dup_public_shares = DkgPublicShares {
+            dkg_id: 0,
+            signer_id: 0,
+            comms: vec![(
+                0,
+                PolyCommitment {
+                    id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                    poly: vec![],
+                },
+            )],
+        };
+        let dup_packet = Packet {
+            msg: Message::DkgPublicShares(dup_public_shares.clone()),
+            sig: Default::default(),
+        };
+
+        coordinator.gather_public_shares(&dup_packet).unwrap();
+        assert_eq!(1, coordinator.dkg_public_shares.len());
+        assert_eq!(
+            public_shares,
+            coordinator
+                .dkg_public_shares
+                .iter()
+                .next()
+                .unwrap()
+                .1
+                .clone()
+        );
+    }
+
+    #[test]
+    fn dkg_private_share_v1() {
+        dkg_private_share::<v1::Aggregator, v1::Signer>();
+    }
+
+    #[test]
+    fn dkg_private_share_v2() {
+        dkg_private_share::<v2::Aggregator, v2::Signer>();
+    }
+
+    /// test basic insertion and detection of duplicates for DkgPrivateShares
+    fn dkg_private_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
+        let (coordinators, _) = setup::<FireCoordinator<Aggregator>, Signer>(2, 1);
+        let mut coordinator: FireCoordinator<Aggregator> = coordinators[0].clone();
+
+        coordinator.state = State::DkgPrivateGather;
+
+        let private_share = DkgPrivateShares {
+            dkg_id: 0,
+            signer_id: 0,
+            shares: vec![(1, HashMap::new())],
+        };
+        let packet = Packet {
+            msg: Message::DkgPrivateShares(private_share.clone()),
+            sig: Default::default(),
+        };
+        coordinator.gather_private_shares(&packet).unwrap();
+        assert_eq!(1, coordinator.dkg_private_shares.len());
+
+        // check that a duplicate private share is ignored
+        let dup_private_share = DkgPrivateShares {
+            dkg_id: 0,
+            signer_id: 0,
+            shares: vec![(1, HashMap::new())],
+        };
+        let packet = Packet {
+            msg: Message::DkgPrivateShares(dup_private_share.clone()),
+            sig: Default::default(),
+        };
+        coordinator.gather_private_shares(&packet).unwrap();
+        assert_eq!(1, coordinator.dkg_private_shares.len());
+        assert_eq!(
+            private_share,
+            coordinator
+                .dkg_private_shares
+                .iter()
+                .next()
+                .unwrap()
+                .1
+                .clone()
+        );
+    }
+
+    #[test]
+    fn nonce_response_v1() {
+        nonce_response::<v1::Aggregator, v1::Signer>();
+    }
+
+    #[test]
+    fn nonce_response_v2() {
+        nonce_response::<v2::Aggregator, v2::Signer>();
+    }
+
+    /// test basic insertion and detection of duplicates for NonceResponse
+    fn nonce_response<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
+        let mut rng = create_rng();
+        let (coordinators, _) = setup::<FireCoordinator<Aggregator>, Signer>(2, 1);
+        let mut coordinator: FireCoordinator<Aggregator> = coordinators[0].clone();
+        let signature_type = SignatureType::Frost;
+        let message = vec![0u8];
+        coordinator.state = State::NonceGather(signature_type);
+
+        let nonce_response = NonceResponse {
+            dkg_id: 0,
+            sign_id: 0,
+            sign_iter_id: 0,
+            signer_id: 0,
+            key_ids: vec![1u32],
+            nonces: vec![PublicNonce {
+                D: Point::from(Scalar::random(&mut rng)),
+                E: Point::from(Scalar::random(&mut rng)),
+            }],
+            message: message.clone(),
+        };
+        let packet = Packet {
+            msg: Message::NonceResponse(nonce_response.clone()),
+            sig: Default::default(),
+        };
+        coordinator.gather_nonces(&packet, signature_type).unwrap();
+        assert_eq!(1, coordinator.message_nonces[&message].public_nonces.len());
+
+        // check that a duplicate private share is ignored
+        let dup_nonce_response = NonceResponse {
+            dkg_id: 0,
+            sign_id: 0,
+            sign_iter_id: 0,
+            signer_id: 0,
+            key_ids: vec![1u32],
+            nonces: vec![PublicNonce {
+                D: Point::from(Scalar::random(&mut rng)),
+                E: Point::from(Scalar::random(&mut rng)),
+            }],
+            message: message.clone(),
+        };
+        let packet = Packet {
+            msg: Message::NonceResponse(dup_nonce_response.clone()),
+            sig: Default::default(),
+        };
+        coordinator.gather_nonces(&packet, signature_type).unwrap();
+        assert_eq!(1, coordinator.message_nonces[&message].public_nonces.len());
+        assert_eq!(
+            nonce_response,
+            coordinator.message_nonces[&message]
+                .public_nonces
+                .iter()
+                .next()
+                .unwrap()
+                .1
+                .clone()
+        );
+    }
+
+    #[test]
+    fn sig_share_v1() {
+        sig_share::<v1::Aggregator, v1::Signer>();
+    }
+
+    #[test]
+    fn sig_share_v2() {
+        sig_share::<v2::Aggregator, v1::Signer>();
+    }
+
+    /// test basic insertion and detection of duplicates for SignatureShareResponse
+    fn sig_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
+        let mut rng = create_rng();
+        let (coordinators, _) = setup::<FireCoordinator<Aggregator>, Signer>(2, 1);
+        let mut coordinator = coordinators[0].clone();
+        let signature_type = SignatureType::Frost;
+
+        coordinator.state = State::SigShareGather(signature_type);
+
+        let signature_share = SignatureShare {
+            id: 1,
+            z_i: Scalar::random(&mut rng),
+            key_ids: vec![1],
+        };
+        let sig_share_response = SignatureShareResponse {
+            dkg_id: 0,
+            sign_id: 0,
+            sign_iter_id: 0,
+            signer_id: 0,
+            signature_shares: vec![signature_share.clone()],
+        };
+        let packet = Packet {
+            msg: Message::SignatureShareResponse(sig_share_response.clone()),
+            sig: Default::default(),
+        };
+        coordinator
+            .gather_sig_shares(&packet, signature_type)
+            .unwrap();
+        assert_eq!(1, coordinator.signature_shares.len());
+
+        // check that a duplicate private share is ignored
+        let dup_signature_share = SignatureShare {
+            id: 1,
+            z_i: Scalar::random(&mut rng),
+            key_ids: vec![1],
+        };
+        let dup_sig_share_response = SignatureShareResponse {
+            dkg_id: 0,
+            sign_id: 0,
+            sign_iter_id: 0,
+            signer_id: 0,
+            signature_shares: vec![dup_signature_share.clone()],
+        };
+        let packet = Packet {
+            msg: Message::SignatureShareResponse(dup_sig_share_response.clone()),
+            sig: Default::default(),
+        };
+        coordinator
+            .gather_sig_shares(&packet, signature_type)
+            .unwrap();
+        assert_eq!(1, coordinator.signature_shares.len());
+        assert_eq!(
+            vec![signature_share],
+            coordinator
+                .signature_shares
+                .iter()
+                .next()
+                .unwrap()
+                .1
+                .clone()
+        );
     }
 
     #[test]
