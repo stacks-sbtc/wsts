@@ -1,4 +1,14 @@
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
 
 name: CI
 
@@ -8,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          persist-credentials: false
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -22,6 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          persist-credentials: false
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -36,6 +50,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          persist-credentials: false
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -52,6 +68,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          persist-credentials: false
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
@@ -64,9 +82,14 @@ jobs:
           args: -- -D warnings -A clippy::op-ref -A clippy::needless-range-loop
 
   doc:
+    permissions:
+      contents: read
+      pages: write
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          persist-credentials: false
       - uses: actions-rs/toolchain@v1
         with:
           profile: minimal
