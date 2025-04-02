@@ -124,17 +124,17 @@ pub struct SavedState {
     pub commitments: HashMap<u32, PolyCommitment>,
     /// map of decrypted DKG private shares
     /// src_party_id => (dst_key_id => private_share)
-    pub decrypted_shares: HashMap<u32, HashMap<u32, Scalar>>,
+    decrypted_shares: HashMap<u32, HashMap<u32, Scalar>>,
     /// shared secrets used to decrypt private shares
     /// src_party_id => (signer_id, dh shared key)
-    pub decryption_keys: HashMap<u32, (u32, Point)>,
+    decryption_keys: HashMap<u32, (u32, Point)>,
     /// invalid private shares
     /// signer_id => {shared_key, tuple_proof}
     pub invalid_private_shares: HashMap<u32, BadPrivateShare>,
     /// public nonces for this signing round
     pub public_nonces: Vec<PublicNonce>,
     /// the private key used to sign messages sent over the network
-    pub network_private_key: Scalar,
+    network_private_key: Scalar,
     /// the public keys for all signers and coordinator
     pub public_keys: PublicKeys,
     /// the DKG public shares received in this round
@@ -905,6 +905,15 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             }
         }
 
+        let have_shares = self
+            .dkg_public_shares
+            .contains_key(&dkg_public_shares.signer_id);
+
+        if have_shares {
+            info!(signer_id = %dkg_public_shares.signer_id, "received duplicate DkgPublicShares");
+            return Ok(vec![]);
+        }
+
         self.dkg_public_shares
             .insert(dkg_public_shares.signer_id, dkg_public_shares.clone());
         Ok(vec![])
@@ -937,6 +946,11 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                 );
                 return Ok(vec![]);
             }
+        }
+
+        if self.dkg_private_shares.contains_key(&src_signer_id) {
+            info!(signer_id = %dkg_private_shares.signer_id, "received duplicate DkgPrivateShares");
+            return Ok(vec![]);
         }
 
         self.dkg_private_shares
@@ -1047,6 +1061,7 @@ impl<SignerType: SignerTrait> StateMachine<State, Error> for Signer<SignerType> 
 #[cfg(test)]
 /// Test module for signer functionality
 pub mod test {
+    use super::*;
     use crate::{
         common::PolyCommitment,
         curve::{ecdsa, scalar::Scalar},
@@ -1245,7 +1260,26 @@ pub mod test {
             comms,
         };
         signer.dkg_public_share(&public_share).unwrap();
-        assert_eq!(1, signer.dkg_public_shares.len())
+        assert_eq!(1, signer.dkg_public_shares.len());
+
+        // check that a duplicate public share is ignored
+        let dup_public_share = DkgPublicShares {
+            dkg_id: 0,
+            signer_id: 0,
+            comms: vec![(
+                0,
+                PolyCommitment {
+                    id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                    poly: vec![],
+                },
+            )],
+        };
+        signer.dkg_public_share(&dup_public_share).unwrap();
+        assert_eq!(1, signer.dkg_public_shares.len());
+        assert_eq!(
+            public_share,
+            signer.dkg_public_shares.iter().next().unwrap().1.clone()
+        );
     }
 
     #[test]
@@ -1287,6 +1321,110 @@ pub mod test {
 
         // public_shares_done should be true
         assert!(signer.public_shares_done());
+    }
+
+    #[test]
+    /// test basic insertion and detection of duplicates for DkgPrivateShares for v1
+    fn dkg_private_share_v1() {
+        let mut rng = create_rng();
+
+        let private_key = Scalar::random(&mut rng);
+        let public_key = ecdsa::PublicKey::new(&private_key).unwrap();
+        let private_key2 = Scalar::random(&mut rng);
+        let public_key2 = ecdsa::PublicKey::new(&private_key2).unwrap();
+        let mut public_keys: PublicKeys = Default::default();
+
+        public_keys.signers.insert(0, public_key.clone());
+        public_keys.signers.insert(1, public_key2.clone());
+        public_keys.key_ids.insert(1, public_key.clone());
+        public_keys.key_ids.insert(2, public_key2.clone());
+
+        let mut key_ids = HashSet::new();
+        key_ids.insert(1);
+        public_keys.signer_key_ids.insert(0, key_ids);
+
+        let mut key_ids2 = HashSet::new();
+        key_ids2.insert(2);
+        public_keys.signer_key_ids.insert(1, key_ids2);
+
+        let mut signer =
+            Signer::<v1::Signer>::new(1, 1, 2, 2, 0, vec![1], private_key, public_keys, &mut rng)
+                .unwrap();
+
+        let private_share = DkgPrivateShares {
+            dkg_id: 0,
+            signer_id: 1,
+            shares: vec![(2, HashMap::new())],
+        };
+        signer.dkg_private_shares(&private_share, &mut rng).unwrap();
+        assert_eq!(1, signer.dkg_private_shares.len());
+
+        // check that a duplicate private share is ignored
+        let dup_private_share = DkgPrivateShares {
+            dkg_id: 0,
+            signer_id: 1,
+            shares: vec![(2, HashMap::new())],
+        };
+        signer
+            .dkg_private_shares(&dup_private_share, &mut rng)
+            .unwrap();
+        assert_eq!(1, signer.dkg_private_shares.len());
+        assert_eq!(
+            private_share,
+            signer.dkg_private_shares.iter().next().unwrap().1.clone()
+        );
+    }
+
+    #[test]
+    /// test basic insertion and detection of duplicates for DkgPrivateShares for v2
+    fn dkg_private_share_v2() {
+        let mut rng = create_rng();
+
+        let private_key = Scalar::random(&mut rng);
+        let public_key = ecdsa::PublicKey::new(&private_key).unwrap();
+        let private_key2 = Scalar::random(&mut rng);
+        let public_key2 = ecdsa::PublicKey::new(&private_key2).unwrap();
+        let mut public_keys: PublicKeys = Default::default();
+
+        public_keys.signers.insert(0, public_key.clone());
+        public_keys.signers.insert(1, public_key2.clone());
+        public_keys.key_ids.insert(1, public_key.clone());
+        public_keys.key_ids.insert(2, public_key2.clone());
+
+        let mut key_ids = HashSet::new();
+        key_ids.insert(1);
+        public_keys.signer_key_ids.insert(0, key_ids);
+
+        let mut key_ids2 = HashSet::new();
+        key_ids2.insert(2);
+        public_keys.signer_key_ids.insert(1, key_ids2);
+
+        let mut signer =
+            Signer::<v2::Signer>::new(1, 1, 2, 2, 0, vec![1], private_key, public_keys, &mut rng)
+                .unwrap();
+
+        let private_share = DkgPrivateShares {
+            dkg_id: 0,
+            signer_id: 1,
+            shares: vec![(1, HashMap::new())],
+        };
+        signer.dkg_private_shares(&private_share, &mut rng).unwrap();
+        assert_eq!(1, signer.dkg_private_shares.len());
+
+        // check that a duplicate private share is ignored
+        let dup_private_share = DkgPrivateShares {
+            dkg_id: 0,
+            signer_id: 1,
+            shares: vec![(1, HashMap::new())],
+        };
+        signer
+            .dkg_private_shares(&dup_private_share, &mut rng)
+            .unwrap();
+        assert_eq!(1, signer.dkg_private_shares.len());
+        assert_eq!(
+            private_share,
+            signer.dkg_private_shares.iter().next().unwrap().1.clone()
+        );
     }
 
     #[test]
