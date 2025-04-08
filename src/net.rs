@@ -196,13 +196,6 @@ pub struct DkgPrivateShares {
     pub shares: Vec<(u32, HashMap<u32, Vec<u8>>)>,
 }
 
-impl DkgPrivateShares {
-    /// Verify that the shares are good
-    pub fn verify() -> bool {
-        true
-    }
-}
-
 impl Signable for DkgPrivateShares {
     fn hash(&self, hasher: &mut Sha256) {
         hasher.update("DKG_PRIVATE_SHARES".as_bytes());
