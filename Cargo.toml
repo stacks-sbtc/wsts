@@ -1,6 +1,6 @@
 [package]
 name = "wsts"
-version = "14.0.1"
+version = "14.0.2"
 edition = "2021"
 authors = ["Joey Yandle <xoloki@gmail.com>"]
 license = "Apache-2.0"
