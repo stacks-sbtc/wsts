@@ -770,12 +770,11 @@ impl<Aggregator: AggregatorTrait> StateMachine<State, Error> for Coordinator<Agg
             }
         };
         if accepted {
-            debug!("state change from {:?} to {:?}", prev_state, state);
+            debug!("state change from {prev_state:?} to {state:?}");
             Ok(())
         } else {
             Err(Error::BadStateChange(format!(
-                "{:?} to {:?}",
-                prev_state, state
+                "{prev_state:?} to {state:?}"
             )))
         }
     }

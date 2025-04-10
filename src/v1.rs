@@ -1,3 +1,5 @@
+use std::fmt;
+
 use hashbrown::{HashMap, HashSet};
 use num_traits::{One, Zero};
 use polynomial::Polynomial;
@@ -21,7 +23,7 @@ use crate::{
     vss::VSS,
 };
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 /// A FROST party, which encapsulates a single polynomial, nonce, and key
 pub struct Party {
     /// The ID
@@ -36,6 +38,21 @@ pub struct Party {
     /// The aggregate group public key
     pub group_key: Point,
     nonce: Nonce,
+}
+
+impl fmt::Debug for Party {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Party")
+            .field("id", &self.id)
+            .field("public_key", &self.public_key)
+            .field("f", &self.f)
+            .field("num_keys", &self.num_keys)
+            .field("threshold", &self.threshold)
+            .field("private_key", &"<redacted>")
+            .field("group_key", &self.group_key)
+            .field("nonce", &"<redacted>")
+            .finish()
+    }
 }
 
 impl Party {
