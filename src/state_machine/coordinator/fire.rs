@@ -178,7 +178,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 .ok_or(Error::MissingMessageNonceInfo)?
                                 .sign_wait_signer_ids
                             {
-                                warn!("Mark signer {} as malicious", signer_id);
+                                warn!("Mark signer {signer_id} as malicious");
                                 self.malicious_signer_ids.insert(*signer_id);
                             }
 

@@ -10,6 +10,7 @@ use core::{cmp::PartialEq, fmt::Debug};
 use hashbrown::{HashMap, HashSet};
 use std::{
     collections::BTreeMap,
+    fmt,
     time::{Duration, Instant},
 };
 
@@ -98,7 +99,7 @@ impl From<AggregatorError> for Error {
 }
 
 /// Config fields common to all Coordinators
-#[derive(Default, Clone, Debug, PartialEq)]
+#[derive(Default, Clone, PartialEq)]
 pub struct Config {
     /// total number of signers
     pub num_signers: u32,
@@ -124,6 +125,24 @@ pub struct Config {
     pub signer_key_ids: HashMap<u32, HashSet<u32>>,
     /// ECDSA public keys as Point objects indexed by signer_id
     pub signer_public_keys: HashMap<u32, Point>,
+}
+
+impl fmt::Debug for Config {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Config")
+            .field("num_signers", &self.num_signers)
+            .field("num_keys", &self.num_keys)
+            .field("dkg_threshold", &self.dkg_threshold)
+            .field("message_private_key", &"<redacted>")
+            .field("dkg_public_timeout", &self.dkg_public_timeout)
+            .field("dkg_private_timeout", &self.dkg_private_timeout)
+            .field("dkg_end_timeout", &self.dkg_end_timeout)
+            .field("nonce_timeout", &self.nonce_timeout)
+            .field("sign_timeout", &self.sign_timeout)
+            .field("signer_key_ids", &self.signer_key_ids)
+            .field("signer_public_keys", &self.signer_public_keys)
+            .finish()
+    }
 }
 
 impl Config {

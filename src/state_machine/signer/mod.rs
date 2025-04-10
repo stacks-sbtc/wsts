@@ -1,7 +1,10 @@
 use core::num::TryFromIntError;
 use hashbrown::{HashMap, HashSet};
 use rand_core::{CryptoRng, RngCore};
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+};
 use tracing::{debug, info, trace, warn};
 
 use crate::{
@@ -91,7 +94,7 @@ pub enum Error {
 }
 
 /// The saved state required to reconstruct a signer
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SavedState {
     /// current DKG round ID
     pub dkg_id: u64,
@@ -141,8 +144,42 @@ pub struct SavedState {
     pub dkg_end_begin_msg: Option<DkgEndBegin>,
 }
 
+impl fmt::Debug for SavedState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SavedState")
+            .field("dkg_id", &self.dkg_id)
+            .field("sign_id", &self.sign_id)
+            .field("sign_iter_id", &self.sign_iter_id)
+            .field("threshold", &self.threshold)
+            .field("dkg_threshold", &self.dkg_threshold)
+            .field("total_signers", &self.total_signers)
+            .field("total_keys", &self.total_keys)
+            .field("signer", &self.signer)
+            .field("signer_id", &self.signer_id)
+            .field("state", &self.state)
+            .field("commitments", &self.commitments)
+            .field(
+                "decrypted_shares",
+                &format!("<{} shares>", self.decrypted_shares.len()),
+            )
+            .field(
+                "decryption_keys",
+                &format!("<{} keys>", self.decryption_keys.len()),
+            )
+            .field("invalid_private_shares", &self.invalid_private_shares)
+            .field("public_nonces", &self.public_nonces)
+            .field("network_private_key", &"<redacted>")
+            .field("public_keys", &self.public_keys)
+            .field("dkg_public_shares", &self.dkg_public_shares)
+            .field("dkg_private_shares", &self.dkg_private_shares)
+            .field("dkg_private_begin_msg", &self.dkg_private_begin_msg)
+            .field("dkg_end_begin_msg", &self.dkg_end_begin_msg)
+            .finish()
+    }
+}
+
 /// A state machine for a signing round
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Signer<SignerType: SignerTrait> {
     /// current DKG round ID
     pub dkg_id: u64,
@@ -192,6 +229,40 @@ pub struct Signer<SignerType: SignerTrait> {
     pub dkg_end_begin_msg: Option<DkgEndBegin>,
 }
 
+impl<SignerType: SignerTrait> fmt::Debug for Signer<SignerType> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Signer")
+            .field("dkg_id", &self.dkg_id)
+            .field("sign_id", &self.sign_id)
+            .field("sign_iter_id", &self.sign_iter_id)
+            .field("threshold", &self.threshold)
+            .field("dkg_threshold", &self.dkg_threshold)
+            .field("total_signers", &self.total_signers)
+            .field("total_keys", &self.total_keys)
+            .field("signer", &self.signer)
+            .field("signer_id", &self.signer_id)
+            .field("state", &self.state)
+            .field("commitments", &self.commitments)
+            .field(
+                "decrypted_shares",
+                &format!("<{} shares>", self.decrypted_shares.len()),
+            )
+            .field(
+                "decryption_keys",
+                &format!("<{} keys>", self.decryption_keys.len()),
+            )
+            .field("invalid_private_shares", &self.invalid_private_shares)
+            .field("public_nonces", &self.public_nonces)
+            .field("network_private_key", &"<redacted>")
+            .field("public_keys", &self.public_keys)
+            .field("dkg_public_shares", &self.dkg_public_shares)
+            .field("dkg_private_shares", &self.dkg_private_shares)
+            .field("dkg_private_begin_msg", &self.dkg_private_begin_msg)
+            .field("dkg_end_begin_msg", &self.dkg_end_begin_msg)
+            .finish()
+    }
+}
+
 impl<SignerType: SignerTrait> Signer<SignerType> {
     /// create a Signer
     #[allow(clippy::too_many_arguments)]
@@ -238,10 +309,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             threshold,
             rng,
         );
-        debug!(
-            "new Signer for signer_id {} with key_ids {:?}",
-            signer_id, &key_ids
-        );
+        debug!("new Signer for signer_id {signer_id} with key_ids {key_ids:?}");
         Ok(Self {
             dkg_id: 0,
             sign_id: 1,
@@ -338,6 +406,10 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
     }
 
     /// Process the slice of packets
+    ///
+    /// # Panics
+    /// This function will panic if message signing fails, which can occur if the
+    /// `network_private_key` is invalid or not properly initialized.
     pub fn process_inbound_messages<R: RngCore + CryptoRng>(
         &mut self,
         messages: &[Packet],
@@ -379,7 +451,9 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                 self.sign_share_request(sign_share_request, rng)
             }
             Message::NonceRequest(nonce_request) => self.nonce_request(nonce_request, rng),
-            _ => Ok(vec![]), // TODO
+            Message::DkgEnd(_) | Message::NonceResponse(_) | Message::SignatureShareResponse(_) => {
+                Ok(vec![])
+            } // TODO
         };
 
         match out_msgs {

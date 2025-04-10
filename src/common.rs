@@ -48,7 +48,7 @@ impl Display for PolyCommitment {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Eq, PartialEq, Deserialize, Serialize)]
 /// A composite private nonce used as a random commitment in the protocol
 pub struct Nonce {
     /// The first committed value
