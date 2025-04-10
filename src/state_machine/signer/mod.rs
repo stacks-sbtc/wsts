@@ -601,11 +601,11 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                                         self.make_bad_private_share(*party_signer_id, rng),
                                     );
                                 } else {
-                                    warn!("DkgError::BadPrivateShares from party_id {} but no (signer_id, shared_secret) cached", party_id);
+                                    warn!("DkgError::BadPrivateShares from party_id {party_id} but no (signer_id, shared_secret) cached");
                                 }
                             }
                         } else {
-                            warn!("Got unexpected dkg_error {:?}", dkg_error);
+                            warn!("Got unexpected dkg_error {dkg_error:?}");
                         }
                     }
                     DkgEnd {
@@ -663,10 +663,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                 // need public shares from active signers
                 for signer_id in &dkg_private_begin.signer_ids {
                     if !self.dkg_public_shares.contains_key(signer_id) {
-                        debug!(
-                            "can_dkg_end: false, missing public shares from signer {}",
-                            signer_id
-                        );
+                        debug!("can_dkg_end: false, missing public shares from signer {signer_id}");
                         return false;
                     }
                 }
@@ -675,10 +672,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                     // need private shares from active signers
                     for signer_id in &dkg_end_begin.signer_ids {
                         if !self.dkg_private_shares.contains_key(signer_id) {
-                            debug!(
-                                "can_dkg_end: false, missing private shares from signer {}",
-                                signer_id
-                            );
+                            debug!("can_dkg_end: false, missing private shares from signer {signer_id}");
                             return false;
                         }
                     }
@@ -896,15 +890,15 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         );
         for (key_id, shares) in &self.signer.get_shares() {
             debug!(
-                "Signer {} addding dkg private share for key_id {}",
-                self.signer_id, key_id
+                "Signer {} addding dkg private share for key_id {key_id}",
+                self.signer_id
             );
             // encrypt each share for the recipient
             let mut encrypted_shares = HashMap::new();
 
             for (dst_key_id, private_share) in shares {
                 if active_key_ids.contains(dst_key_id) {
-                    debug!("encrypting dkg private share for key_id {}", dst_key_id);
+                    debug!("encrypting dkg private share for key_id {dst_key_id}");
                     let compressed =
                         Compressed::from(self.public_keys.key_ids[dst_key_id].to_bytes());
                     // this should not fail as long as the public key above was valid
@@ -1008,10 +1002,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                 *party_id,
                 &self.public_keys.signer_key_ids,
             ) {
-                warn!(
-                    "Signer {} sent a polynomial commitment for party {}",
-                    src_signer_id, party_id
-                );
+                warn!("Signer {src_signer_id} sent a polynomial commitment for party {party_id}");
                 return Ok(vec![]);
             }
         }
@@ -1042,7 +1033,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                                 decrypted_shares.insert(*dst_key_id, s);
                             }
                             Err(e) => {
-                                warn!("Failed to parse Scalar for dkg private share from src_id {} to dst_id {}: {:?}", src_id, dst_key_id, e);
+                                warn!("Failed to parse Scalar for dkg private share from src_id {src_id} to dst_id {dst_key_id}: {e:?}");
                                 self.invalid_private_shares.insert(
                                     src_signer_id,
                                     self.make_bad_private_share(src_signer_id, rng),
@@ -1050,7 +1041,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                             }
                         },
                         Err(e) => {
-                            warn!("Failed to decrypt dkg private share from src_id {} to dst_id {}: {:?}", src_id, dst_key_id, e);
+                            warn!("Failed to decrypt dkg private share from src_id {src_id} to dst_id {dst_key_id}: {e:?}");
                             self.invalid_private_shares.insert(
                                 src_signer_id,
                                 self.make_bad_private_share(src_signer_id, rng),
@@ -1116,12 +1107,11 @@ impl<SignerType: SignerTrait> StateMachine<State, Error> for Signer<SignerType> 
             State::SignGather => prev_state == &State::Idle,
         };
         if accepted {
-            debug!("state change from {:?} to {:?}", prev_state, state);
+            debug!("state change from {prev_state:?} to {state:?}");
             Ok(())
         } else {
             Err(Error::BadStateChange(format!(
-                "{:?} to {:?}",
-                prev_state, state
+                "{prev_state:?} to {state:?}"
             )))
         }
     }
@@ -1586,13 +1576,12 @@ pub mod test {
         )
         .unwrap();
 
-        if let Ok(Message::DkgEnd(dkg_end)) = signer.dkg_ended(&mut rng) {
-            match dkg_end.status {
-                DkgStatus::Failure(_) => {}
-                _ => panic!("Expected DkgStatus::Failure"),
-            }
-        } else {
+        let Ok(Message::DkgEnd(dkg_end)) = signer.dkg_ended(&mut rng) else {
             panic!("Unexpected Error");
-        }
+        };
+        assert!(
+            matches!(dkg_end.status, DkgStatus::Failure(_)),
+            "Expected DkgStatus::Failure"
+        );
     }
 }
