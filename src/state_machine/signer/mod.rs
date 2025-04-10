@@ -87,13 +87,7 @@ pub enum Error {
     Encryption(#[from] EncryptionError),
     #[error("integer conversion error")]
     /// An error during integer conversion operations
-    TryFromInt,
-}
-
-impl From<TryFromIntError> for Error {
-    fn from(_e: TryFromIntError) -> Self {
-        Self::TryFromInt
-    }
+    TryFromInt(#[from] TryFromIntError),
 }
 
 /// The saved state required to reconstruct a signer
