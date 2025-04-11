@@ -326,6 +326,7 @@ pub mod frost;
 pub mod fire;
 
 #[allow(missing_docs)]
+#[cfg(test)]
 pub mod test {
     use hashbrown::{HashMap, HashSet};
     use rand_core::OsRng;

@@ -13,20 +13,22 @@ use crate::{
         TupleProof,
     },
     curve::{
-        ecdsa::Error as EcdsaError,
         point::{Compressed, Point, G},
         scalar::Scalar,
     },
     errors::{DkgError, EncryptionError},
     net::{
         BadPrivateShare, DkgBegin, DkgEnd, DkgEndBegin, DkgFailure, DkgPrivateBegin,
-        DkgPrivateShares, DkgPublicShares, DkgStatus, Message, NonceRequest, NonceResponse, Packet,
-        Signable, SignatureShareRequest, SignatureShareResponse, SignatureType,
+        DkgPrivateShares, DkgPublicShares, DkgStatus, Message, NonceRequest, NonceResponse,
+        SignatureShareRequest, SignatureShareResponse, SignatureType,
     },
     state_machine::{PublicKeys, StateMachine},
     traits::{Signer as SignerTrait, SignerState as SignerSavedState},
     util::{decrypt, encrypt, make_shared_secret},
 };
+
+#[cfg(test)]
+use crate::net::{Signable, Packet};
 
 #[derive(Debug, Clone, PartialEq)]
 /// Signer states
@@ -62,25 +64,6 @@ pub enum ConfigError {
     InvalidKeyId(u32),
 }
 
-#[derive(Debug, Clone)]
-/// A wrapper to enable printing the particular index of the process_inbound_messages
-pub struct IndexedEcdsaError(Option<usize>, EcdsaError);
-
-impl fmt::Display for IndexedEcdsaError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.0 {
-            Some(i) => write!(f, "ECDSA error occurred at message index {}: {}", i, self.1),
-            None => write!(f, "ECDSA error occurred: {}", self.1),
-        }
-    }
-}
-
-impl std::error::Error for IndexedEcdsaError {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        Some(&self.1)
-    }
-}
-
 #[derive(thiserror::Error, Clone, Debug)]
 /// The error type for a signer
 pub enum Error {
@@ -110,10 +93,7 @@ pub enum Error {
     Encryption(#[from] EncryptionError),
     #[error("integer conversion error")]
     /// An error during integer conversion operations
-    TryFromInt(#[from] TryFromIntError),
-    /// An error occurred
-    #[error("{0}")]
-    ECDSASigningError(#[from] IndexedEcdsaError),
+    TryFromInt(#[from] TryFromIntError)
 }
 
 /// The saved state required to reconstruct a signer
@@ -429,19 +409,20 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
     }
 
     /// Process the slice of packets
+    #[cfg(test)]
     pub fn process_inbound_messages<R: RngCore + CryptoRng>(
         &mut self,
         messages: &[Packet],
         rng: &mut R,
     ) -> Result<Vec<Packet>, Error> {
         let mut responses = vec![];
-        for (i, message) in messages.iter().enumerate() {
+        for message in messages {
             let outbounds = self.process(&message.msg, rng)?;
             for out in outbounds {
                 let msg = Packet {
                     sig: out
-                        .sign(&self.network_private_key)
-                        .map_err(|e| IndexedEcdsaError(Some(i), e))?,
+                        .sign(&self.network_private_key).
+                        expect("Failed to sign message"),
                     msg: out,
                 };
                 responses.push(msg);
