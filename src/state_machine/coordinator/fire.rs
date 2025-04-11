@@ -2199,7 +2199,7 @@ pub mod test {
                 operation_results[0],
                 OperationResult::DkgError(DkgError::DkgPublicTimeout(_))
             ),
-            "Expected OperationResult::DkgError(DkgError::DkgPublicTimeout"
+            "Expected OperationResult::DkgError(DkgError::DkgPublicTimeout)"
         );
 
         // Run DKG again with fresh coordinator and signers, this time allow gathering DkgPublicShares but timeout getting DkgEnd
@@ -2867,13 +2867,10 @@ pub mod test {
         let mut malicious = Vec::new();
 
         // now remove signers so the number is insufficient
-        malicious.extend(
-            insufficient_signers.drain(
-                insufficient_signers
-                    .len()
-                    .saturating_sub(num_signers_to_remove)..,
-            ),
-        );
+        let num_signers_to_drain = insufficient_signers
+            .len()
+            .saturating_sub(num_signers_to_remove);
+        malicious.extend(insufficient_signers.drain(num_signers_to_drain..));
 
         // Send the SignatureShareRequest message to all signers and share their responses with the coordinator and signers
         let (outbound_messages, operation_results) = feedback_messages(
@@ -2921,13 +2918,10 @@ pub mod test {
         }
 
         // again remove signers so the number is insufficient
-        malicious.extend(
-            insufficient_signers.drain(
-                insufficient_signers
-                    .len()
-                    .saturating_sub(num_signers_to_remove)..,
-            ),
-        );
+        let num_signers_to_drain = insufficient_signers
+            .len()
+            .saturating_sub(num_signers_to_remove);
+        malicious.extend(insufficient_signers.drain(num_signers_to_drain..));
 
         // Send the SignatureShareRequest message to all signers and share their responses with the coordinator and signers
         let (outbound_messages, operation_results) = feedback_messages(
@@ -2962,7 +2956,7 @@ pub mod test {
                 operation_results[0],
                 OperationResult::SignError(SignError::InsufficientSigners(_))
             ),
-            "Expected OperationResult::SignError(SignError::InsufficientSigners"
+            "Expected OperationResult::SignError(SignError::InsufficientSigners)"
         );
     }
 

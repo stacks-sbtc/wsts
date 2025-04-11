@@ -7,6 +7,7 @@ use num_traits::{One, Zero};
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::fmt;
 
 use crate::{
     compute::challenge,
@@ -55,6 +56,15 @@ pub struct Nonce {
     pub d: Scalar,
     /// The second committed value
     pub e: Scalar,
+}
+
+impl fmt::Debug for Nonce {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Nonce")
+            .field("d", &"<redacted>")
+            .field("e", &"<redacted>")
+            .finish()
+    }
 }
 
 impl Nonce {

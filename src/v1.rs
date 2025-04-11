@@ -45,7 +45,7 @@ impl fmt::Debug for Party {
         f.debug_struct("Party")
             .field("id", &self.id)
             .field("public_key", &self.public_key)
-            .field("f", &self.f)
+            .field("f", &"<redacted>")
             .field("num_keys", &self.num_keys)
             .field("threshold", &self.threshold)
             .field("private_key", &"<redacted>")
