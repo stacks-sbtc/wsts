@@ -13,6 +13,7 @@ use crate::{
         TupleProof,
     },
     curve::{
+        ecdsa::Error as EcdsaError,
         point::{Compressed, Point, G},
         scalar::Scalar,
     },
@@ -61,6 +62,25 @@ pub enum ConfigError {
     InvalidKeyId(u32),
 }
 
+#[derive(Debug, Clone)]
+/// A wrapper to enable printing the particular index of the process_inbound_messages
+pub struct IndexedEcdsaError(Option<usize>, EcdsaError);
+
+impl fmt::Display for IndexedEcdsaError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            Some(i) => write!(f, "ECDSA error occurred at message index {}: {}", i, self.1),
+            None => write!(f, "ECDSA error occurred: {}", self.1),
+        }
+    }
+}
+
+impl std::error::Error for IndexedEcdsaError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.1)
+    }
+}
+
 #[derive(thiserror::Error, Clone, Debug)]
 /// The error type for a signer
 pub enum Error {
@@ -91,6 +111,9 @@ pub enum Error {
     #[error("integer conversion error")]
     /// An error during integer conversion operations
     TryFromInt(#[from] TryFromIntError),
+    /// An error occurred
+    #[error("{0}")]
+    ECDSASigningError(#[from] IndexedEcdsaError),
 }
 
 /// The saved state required to reconstruct a signer
@@ -406,23 +429,19 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
     }
 
     /// Process the slice of packets
-    ///
-    /// # Panics
-    /// This function will panic if message signing fails, which can occur if the
-    /// `network_private_key` is invalid or not properly initialized.
     pub fn process_inbound_messages<R: RngCore + CryptoRng>(
         &mut self,
         messages: &[Packet],
         rng: &mut R,
     ) -> Result<Vec<Packet>, Error> {
         let mut responses = vec![];
-        for message in messages {
+        for (i, message) in messages.iter().enumerate() {
             let outbounds = self.process(&message.msg, rng)?;
             for out in outbounds {
                 let msg = Packet {
                     sig: out
                         .sign(&self.network_private_key)
-                        .expect("Failed to sign message"),
+                        .map_err(|e| IndexedEcdsaError(Some(i), e))?,
                     msg: out,
                 };
                 responses.push(msg);
