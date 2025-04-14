@@ -1,9 +1,9 @@
 use crate::{
     common::{PolyCommitment, Signature, SignatureShare},
-    curve::{point::Point, scalar::Scalar},
+    curve::{ecdsa, point::Point, scalar::Scalar},
     errors::AggregatorError,
     net::{DkgEnd, DkgPrivateShares, DkgPublicShares, NonceResponse, Packet, SignatureType},
-    state_machine::{DkgFailure, OperationResult, StateMachine},
+    state_machine::{DkgFailure, OperationResult, PublicKeys, StateMachine},
     taproot::SchnorrProof,
 };
 use core::{cmp::PartialEq, fmt::Debug};
@@ -90,6 +90,12 @@ pub enum Error {
     /// Supplied party polynomial contained duplicate party IDs
     #[error("Supplied party polynomials contained a duplicate party ID")]
     DuplicatePartyId,
+    #[error("Missing coordinator public key")]
+    /// Missing coordinator public key"
+    MissingCoordinatorPublicKey,
+    #[error("A packet had an invalid signature")]
+    /// A packet had an invalid signature
+    InvalidPacketSignature,
 }
 
 impl From<AggregatorError> for Error {
@@ -121,10 +127,10 @@ pub struct Config {
     pub nonce_timeout: Option<Duration>,
     /// timeout to gather signature shares
     pub sign_timeout: Option<Duration>,
-    /// map of signer_id to controlled key_ids
-    pub signer_key_ids: HashMap<u32, HashSet<u32>>,
-    /// ECDSA public keys as Point objects indexed by signer_id
-    pub signer_public_keys: HashMap<u32, Point>,
+    /// the public keys and key_ids for all signers
+    pub public_keys: PublicKeys,
+    /// whether to verify the signature on Packets
+    pub verify_packet_sigs: bool,
 }
 
 impl fmt::Debug for Config {
@@ -138,8 +144,8 @@ impl fmt::Debug for Config {
             .field("dkg_end_timeout", &self.dkg_end_timeout)
             .field("nonce_timeout", &self.nonce_timeout)
             .field("sign_timeout", &self.sign_timeout)
-            .field("signer_key_ids", &self.signer_key_ids)
-            .field("signer_public_keys", &self.signer_public_keys)
+            .field("signer_key_ids", &self.public_keys.signer_key_ids)
+            .field("signer_public_keys", &self.public_keys.signers)
             .finish_non_exhaustive()
     }
 }
@@ -163,8 +169,8 @@ impl Config {
             dkg_end_timeout: None,
             nonce_timeout: None,
             sign_timeout: None,
-            signer_key_ids: Default::default(),
-            signer_public_keys: Default::default(),
+            public_keys: Default::default(),
+            verify_packet_sigs: true,
         }
     }
 
@@ -181,8 +187,7 @@ impl Config {
         dkg_end_timeout: Option<Duration>,
         nonce_timeout: Option<Duration>,
         sign_timeout: Option<Duration>,
-        signer_key_ids: HashMap<u32, HashSet<u32>>,
-        signer_public_keys: HashMap<u32, Point>,
+        public_keys: PublicKeys,
     ) -> Self {
         Config {
             num_signers,
@@ -195,8 +200,8 @@ impl Config {
             dkg_end_timeout,
             nonce_timeout,
             sign_timeout,
-            signer_key_ids,
-            signer_public_keys,
+            public_keys,
+            verify_packet_sigs: true,
         }
     }
 }
@@ -263,6 +268,8 @@ pub struct SavedState {
     pub malicious_signer_ids: HashSet<u32>,
     /// set of malicious signers during dkg round
     pub malicious_dkg_signer_ids: HashSet<u32>,
+    /// coordinator public key
+    pub coordinator_public_key: Option<ecdsa::PublicKey>,
 }
 
 /// Coordinator trait for handling the coordination of DKG and sign messages
@@ -278,6 +285,12 @@ pub trait Coordinator: Clone + Debug + PartialEq + StateMachine<State, Error> {
 
     /// Retrieve the config
     fn get_config(&self) -> Config;
+
+    /// Retrieve a mutable reference to the config
+    fn get_config_mut(&mut self) -> &mut Config;
+
+    /// Set the coordinator public key
+    fn set_coordinator_public_key(&mut self, key: Option<ecdsa::PublicKey>);
 
     /// Initialize Coordinator from partial saved state
     fn set_key_and_party_polynomials(
@@ -541,7 +554,7 @@ pub mod test {
             .iter()
             .enumerate()
             .map(|(signer_id, (private_key, _public_key))| {
-                Signer::<SignerType>::new(
+                let mut signer = Signer::<SignerType>::new(
                     threshold,
                     dkg_threshold,
                     num_signers,
@@ -552,13 +565,15 @@ pub mod test {
                     public_keys.clone(),
                     &mut rng,
                 )
-                .unwrap()
+                .unwrap();
+                signer.verify_packet_sigs = false;
+                signer
             })
             .collect::<Vec<Signer<SignerType>>>();
         let coordinators = key_pairs
             .into_iter()
             .map(|(private_key, _public_key)| {
-                let config = Config::with_timeouts(
+                let mut config = Config::with_timeouts(
                     num_signers,
                     num_keys,
                     threshold,
@@ -569,9 +584,9 @@ pub mod test {
                     dkg_end_timeout,
                     nonce_timeout,
                     sign_timeout,
-                    signer_key_ids_set.clone(),
-                    signer_public_keys.clone(),
+                    public_keys.clone(),
                 );
+                config.verify_packet_sigs = false;
                 Coordinator::new(config)
             })
             .collect::<Vec<Coordinator>>();
@@ -922,6 +937,215 @@ pub mod test {
         );
     }
 
+    pub fn verify_packet_sigs<Coordinator: CoordinatorTrait, SignerType: SignerTrait>() {
+        let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
+        let mut coordinators = vec![coordinators[0].clone()];
+
+        for coordinator in coordinators.iter_mut() {
+            let config = coordinator.get_config_mut();
+            config.verify_packet_sigs = true;
+
+            let coordinator_public_key = config.public_keys.signers[&0];
+            coordinator.set_coordinator_public_key(Some(coordinator_public_key));
+        }
+
+        for signer in signers.iter_mut() {
+            signer.verify_packet_sigs = true;
+
+            let coordinator_public_key = signer.public_keys.signers[&0];
+            signer.coordinator_public_key = Some(coordinator_public_key);
+        }
+
+        // We have started a dkg round
+        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        assert!(coordinators
+            .first_mut()
+            .unwrap()
+            .get_aggregate_public_key()
+            .is_none());
+        assert_eq!(
+            coordinators.first_mut().unwrap().get_state(),
+            State::DkgPublicGather
+        );
+
+        // Send the DKG Begin message to all signers and gather responses by sharing with all other signers and coordinator
+        let (outbound_messages, operation_results) =
+            feedback_messages(&mut coordinators, &mut signers, &[message]);
+        assert!(operation_results.is_empty());
+        for coordinator in coordinators.iter() {
+            assert_eq!(coordinator.get_state(), State::DkgPrivateGather);
+        }
+
+        assert_eq!(outbound_messages.len(), 1);
+        match &outbound_messages[0].msg {
+            Message::DkgPrivateBegin(_) => {}
+            _ => {
+                panic!("Expected DkgPrivateBegin message");
+            }
+        }
+
+        // Send the DKG Private Begin message to all signers and share their responses with the coordinator and signers
+        let (outbound_messages, operation_results) =
+            feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
+        assert_eq!(operation_results.len(), 0);
+        assert_eq!(outbound_messages.len(), 1);
+        match &outbound_messages[0].msg {
+            Message::DkgEndBegin(_) => {}
+            _ => {
+                panic!("Expected DkgEndBegin message");
+            }
+        }
+
+        // Send the DkgEndBegin message to all signers and share their responses with the coordinator and signers
+        let (outbound_messages, operation_results) =
+            feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
+        assert_eq!(outbound_messages.len(), 0);
+        assert_eq!(operation_results.len(), 1);
+        match operation_results[0] {
+            OperationResult::Dkg(point) => {
+                assert_ne!(point, Point::default());
+                for coordinator in coordinators.iter() {
+                    assert_eq!(coordinator.get_aggregate_public_key(), Some(point));
+                    assert_eq!(coordinator.get_state(), State::Idle);
+                }
+            }
+            _ => panic!("Expected Dkg Operation result"),
+        }
+
+        // clear the polynomials before persisting
+        for signer in &mut signers {
+            signer.signer.clear_polys();
+        }
+
+        let msg = "It was many and many a year ago, in a kingdom by the sea"
+            .as_bytes()
+            .to_vec();
+
+        run_sign::<Coordinator, SignerType>(
+            &mut coordinators,
+            &mut signers,
+            &msg,
+            SignatureType::Frost,
+        );
+
+        // Remove the coordinator public key on the signers and show that signers fail to verify
+        for signer in signers.iter_mut() {
+            signer.coordinator_public_key = None;
+        }
+
+        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        assert_eq!(
+            coordinators.first_mut().unwrap().get_state(),
+            State::DkgPublicGather
+        );
+
+        let result = feedback_messages_with_errors(&mut coordinators, &mut signers, &[message]);
+        assert!(matches!(
+            result,
+            Err(StateMachineError::Signer(
+                SignerError::MissingCoordinatorPublicKey
+            ))
+        ));
+
+        // Remove the coordinator public key on the coordinator and show that signatures fail to verify
+        let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
+        let mut coordinators = vec![coordinators[0].clone()];
+
+        for coordinator in coordinators.iter_mut() {
+            let config = coordinator.get_config_mut();
+            config.verify_packet_sigs = true;
+
+            coordinator.set_coordinator_public_key(None);
+        }
+
+        for signer in signers.iter_mut() {
+            signer.verify_packet_sigs = true;
+
+            let coordinator_public_key = signer.public_keys.signers[&0];
+            signer.coordinator_public_key = Some(coordinator_public_key);
+        }
+
+        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        assert_eq!(
+            coordinators.first_mut().unwrap().get_state(),
+            State::DkgPublicGather
+        );
+
+        let result = feedback_messages_with_errors(&mut coordinators, &mut signers, &[message]);
+        assert!(matches!(
+            result,
+            Err(StateMachineError::Coordinator(
+                Error::MissingCoordinatorPublicKey
+            ))
+        ));
+
+        // Change the coordinator public key on the signers and show that signatures fail to verify
+        let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
+        let mut coordinators = vec![coordinators[0].clone()];
+
+        for coordinator in coordinators.iter_mut() {
+            let config = coordinator.get_config_mut();
+            config.verify_packet_sigs = true;
+
+            let coordinator_public_key = config.public_keys.signers[&0];
+            coordinator.set_coordinator_public_key(Some(coordinator_public_key));
+        }
+
+        for signer in signers.iter_mut() {
+            signer.verify_packet_sigs = true;
+
+            let coordinator_public_key = signer.public_keys.signers[&1];
+            signer.coordinator_public_key = Some(coordinator_public_key);
+        }
+
+        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        assert_eq!(
+            coordinators.first_mut().unwrap().get_state(),
+            State::DkgPublicGather
+        );
+
+        let result = feedback_messages_with_errors(&mut coordinators, &mut signers, &[message]);
+        assert!(matches!(
+            result,
+            Err(StateMachineError::Signer(
+                SignerError::InvalidPacketSignature
+            ))
+        ));
+
+        // Change the coordinator public key on the coordinator and show that signatures fail to verify
+        let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
+        let mut coordinators = vec![coordinators[0].clone()];
+
+        for coordinator in coordinators.iter_mut() {
+            let config = coordinator.get_config_mut();
+            config.verify_packet_sigs = true;
+
+            let coordinator_public_key = config.public_keys.signers[&1];
+            coordinator.set_coordinator_public_key(Some(coordinator_public_key));
+        }
+
+        for signer in signers.iter_mut() {
+            signer.verify_packet_sigs = true;
+
+            let coordinator_public_key = signer.public_keys.signers[&0];
+            signer.coordinator_public_key = Some(coordinator_public_key);
+        }
+
+        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        assert_eq!(
+            coordinators.first_mut().unwrap().get_state(),
+            State::DkgPublicGather
+        );
+
+        let result = feedback_messages_with_errors(&mut coordinators, &mut signers, &[message]);
+        assert!(matches!(
+            result,
+            Err(StateMachineError::Coordinator(
+                Error::InvalidPacketSignature
+            ))
+        ));
+    }
+
     /// Run DKG then sign a message, but alter the signature shares for signer 0.  This should trigger the aggregator internal check_signature_shares function to run and determine which parties signatures were bad.
     /// Because of the differences between how parties are represented in v1 and v2, we need to pass in a vector of the expected bad parties.
     pub fn check_signature_shares<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
@@ -1087,15 +1311,11 @@ pub mod test {
 
         // Pass the SignatureShareRequest to the first signer and get his SignatureShares
         // which should use the nonce generated before sending out NonceResponse above
-        let messages1 = signers[0]
-            .process(&outbound_messages[0].msg, &mut rng)
-            .unwrap();
+        let messages1 = signers[0].process(&outbound_messages[0], &mut rng).unwrap();
 
         // Pass the SignatureShareRequest to the second signer and get his SignatureShares
         // which should use the nonce generated just before sending out the previous SignatureShare
-        let messages2 = signers[0]
-            .process(&outbound_messages[0].msg, &mut rng)
-            .unwrap();
+        let messages2 = signers[0].process(&outbound_messages[0], &mut rng).unwrap();
 
         // iterate through the responses and collect the embedded shares
         // if the signer didn't generate a nonce after sending the first signature shares
