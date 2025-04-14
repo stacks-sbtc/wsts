@@ -71,7 +71,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                         // that we start the next round at the correct id. (Do this rather
                         // then overwriting afterwards to ensure logging is accurate)
                         self.current_dkg_id = dkg_begin.dkg_id.wrapping_sub(1);
-                        let packet = self.start_dkg_round()?;
+                        let packet = self.start_dkg_round(None)?;
                         return Ok((Some(packet), None));
                     } else if let Message::NonceRequest(nonce_request) = &packet.msg {
                         if self.current_sign_id >= nonce_request.sign_id {
@@ -935,8 +935,12 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
     }
 
     /// Start a DKG round
-    fn start_dkg_round(&mut self) -> Result<Packet, Error> {
-        self.current_dkg_id = self.current_dkg_id.wrapping_add(1);
+    fn start_dkg_round(&mut self, dkg_id: Option<u64>) -> Result<Packet, Error> {
+        if let Some(id) = dkg_id {
+            self.current_dkg_id = id;
+        } else {
+            self.current_dkg_id = self.current_dkg_id.wrapping_add(1);
+        }
         info!("Starting DKG round {}", self.current_dkg_id);
         self.move_to(State::DkgPublicDistribute)?;
         self.start_public_shares()
@@ -1024,12 +1028,14 @@ pub mod test {
 
     #[test]
     fn start_dkg_round_v1() {
-        start_dkg_round::<FrostCoordinator<v1::Aggregator>>();
+        start_dkg_round::<FrostCoordinator<v1::Aggregator>>(None);
+        start_dkg_round::<FrostCoordinator<v1::Aggregator>>(Some(12345u64));
     }
 
     #[test]
     fn start_dkg_round_v2() {
-        start_dkg_round::<FrostCoordinator<v2::Aggregator>>();
+        start_dkg_round::<FrostCoordinator<v2::Aggregator>>(None);
+        start_dkg_round::<FrostCoordinator<v2::Aggregator>>(Some(12345u64));
     }
 
     #[test]
@@ -1095,7 +1101,7 @@ pub mod test {
         let (coordinators, _) = setup::<FrostCoordinator<Aggregator>, Signer>(2, 1);
         let mut coordinator: FrostCoordinator<Aggregator> = coordinators[0].clone();
 
-        coordinator.start_dkg_round().unwrap(); // = State::DkgPublicGather;
+        coordinator.start_dkg_round(None).unwrap(); // = State::DkgPublicGather;
         let public_shares = DkgPublicShares {
             dkg_id: 1,
             signer_id: 0,

@@ -304,8 +304,8 @@ pub trait Coordinator: Clone + Debug + PartialEq + StateMachine<State, Error> {
     /// Retrive the current state
     fn get_state(&self) -> State;
 
-    /// Trigger a DKG round
-    fn start_dkg_round(&mut self) -> Result<Packet, Error>;
+    /// Trigger a DKG round, with an optional `dkg_id`
+    fn start_dkg_round(&mut self, dkg_id: Option<u64>) -> Result<Packet, Error>;
 
     /// Trigger a signing round
     fn start_signing_round(
@@ -438,14 +438,21 @@ pub mod test {
         assert!(coordinator.can_move_to(&State::Idle).is_ok());
     }
 
-    pub fn start_dkg_round<Coordinator: CoordinatorTrait>() {
+    pub fn start_dkg_round<Coordinator: CoordinatorTrait>(dkg_id: Option<u64>) {
         let mut rng = create_rng();
         let config = Config::new(10, 40, 28, Scalar::random(&mut rng));
         let mut coordinator = Coordinator::new(config);
-        let result = coordinator.start_dkg_round();
+        let result = coordinator.start_dkg_round(dkg_id);
 
         assert!(result.is_ok());
-        let Message::DkgBegin(dkg_begin) = result.unwrap().msg else {
+
+        if let Message::DkgBegin(dkg_begin) = result.unwrap().msg {
+            if let Some(id) = dkg_id {
+                assert_eq!(dkg_begin.dkg_id, id);
+            } else {
+                assert_eq!(dkg_begin.dkg_id, 1);
+            }
+        } else {
             panic!("Bad dkg_id");
         };
         assert_eq!(dkg_begin.dkg_id, 1);
@@ -645,7 +652,11 @@ pub mod test {
             setup::<Coordinator, SignerType>(num_signers, keys_per_signer);
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators
             .first_mut()
             .unwrap()
@@ -1326,7 +1337,11 @@ pub mod test {
             setup::<Coordinator, SignerType>(num_signers, keys_per_signer);
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators
             .first_mut()
             .unwrap()
@@ -1424,7 +1439,11 @@ pub mod test {
             setup::<Coordinator, SignerType>(num_signers, keys_per_signer);
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators
             .first_mut()
             .unwrap()
