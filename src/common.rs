@@ -37,6 +37,16 @@ impl PolyCommitment {
     pub fn verify(&self, ctx: &[u8]) -> bool {
         self.id.verify(&self.poly[0], ctx)
     }
+
+    /// Zero out the schnorr::ID
+    pub fn zero(&mut self) {
+        self.id.zero();
+    }
+
+    /// Check if schnorr proof is zeroed out
+    pub fn is_zero(&self) -> bool {
+        self.id.is_zero()
+    }
 }
 
 impl Display for PolyCommitment {
