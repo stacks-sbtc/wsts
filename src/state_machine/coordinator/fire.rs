@@ -6,6 +6,7 @@ use crate::{
     common::{check_public_shares, PolyCommitment, PublicNonce, Signature, SignatureShare},
     compute,
     curve::{
+        ecdsa,
         point::{Point, G},
         scalar::Scalar,
     },
@@ -62,6 +63,8 @@ pub struct Coordinator<Aggregator: AggregatorTrait> {
     sign_start: Option<Instant>,
     malicious_signer_ids: HashSet<u32>,
     malicious_dkg_signer_ids: HashSet<u32>,
+    /// coordinator public key
+    pub coordinator_public_key: Option<ecdsa::PublicKey>,
 }
 
 impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
@@ -76,7 +79,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                     if let Some(timeout) = self.config.dkg_public_timeout {
                         if now.duration_since(start) > timeout {
                             // check dkg_threshold to determine if we can continue
-                            let dkg_size = self.compute_dkg_public_size();
+                            let dkg_size = self.compute_dkg_public_size()?;
 
                             if self.config.dkg_threshold > dkg_size {
                                 error!("Timeout gathering DkgPublicShares for dkg round {} signing round {} iteration {}, dkg_threshold not met ({dkg_size}/{}), unable to continue", self.current_dkg_id, self.current_sign_id, self.current_sign_iter_id, self.config.dkg_threshold);
@@ -104,7 +107,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                     if let Some(timeout) = self.config.dkg_private_timeout {
                         if now.duration_since(start) > timeout {
                             // check dkg_threshold to determine if we can continue
-                            let dkg_size = self.compute_dkg_private_size();
+                            let dkg_size = self.compute_dkg_private_size()?;
 
                             if self.config.dkg_threshold > dkg_size {
                                 error!("Timeout gathering DkgPrivateShares for dkg round {} signing round {} iteration {}, dkg_threshold not met ({dkg_size}/{}), unable to continue", self.current_dkg_id, self.current_sign_id, self.current_sign_iter_id, self.config.dkg_threshold);
@@ -182,11 +185,8 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 self.malicious_signer_ids.insert(*signer_id);
                             }
 
-                            let num_malicious_keys: u32 = self
-                                .malicious_signer_ids
-                                .iter()
-                                .map(|signer_id| self.config.signer_key_ids[signer_id].len() as u32)
-                                .sum();
+                            let num_malicious_keys: u32 =
+                                self.compute_num_key_ids(self.malicious_signer_ids.iter())?;
 
                             if self.config.num_keys - num_malicious_keys < self.config.threshold {
                                 error!("Insufficient non-malicious signers, unable to continue");
@@ -215,6 +215,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         &mut self,
         packet: &Packet,
     ) -> Result<(Option<Packet>, Option<OperationResult>), Error> {
+        if self.config.verify_packet_sigs {
+            let Some(coordinator_public_key) = self.coordinator_public_key else {
+                return Err(Error::MissingCoordinatorPublicKey);
+            };
+            if !packet.verify(&self.config.public_keys, &coordinator_public_key) {
+                return Err(Error::InvalidPacketSignature);
+            }
+        }
         loop {
             match self.state.clone() {
                 State::Idle => {
@@ -476,7 +484,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             }
 
             // check that the signer_id exists in the config
-            let signer_public_keys = &self.config.signer_public_keys;
+            let signer_public_keys = &self.config.public_keys.signers;
             if !signer_public_keys.contains_key(&dkg_public_shares.signer_id) {
                 warn!(signer_id = %dkg_public_shares.signer_id, "No public key in config");
                 return Ok(());
@@ -524,7 +532,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             }
 
             // check that the signer_id exists in the config
-            let signer_public_keys = &self.config.signer_public_keys;
+            let signer_public_keys = &self.config.public_keys.signers;
             if !signer_public_keys.contains_key(&dkg_private_shares.signer_id) {
                 warn!(signer_id = %dkg_private_shares.signer_id, "No public key in config");
                 return Ok(());
@@ -609,7 +617,13 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             // bad_shares is a set of signer_ids
                             for bad_signer_id in bad_shares {
                                 // verify public shares are bad
-                                let dkg_public_shares = &self.dkg_public_shares[bad_signer_id];
+                                let Some(dkg_public_shares) =
+                                    self.dkg_public_shares.get(bad_signer_id)
+                                else {
+                                    warn!("Signer {signer_id} reported BadPublicShares from invalid signer_id {bad_signer_id}, mark {signer_id} as malicious");
+                                    self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    continue;
+                                };
                                 let mut bad_party_ids = Vec::new();
                                 for (party_id, comm) in &dkg_public_shares.comms {
                                     if !check_public_shares(
@@ -638,28 +652,58 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             // bad_shares is a map of signer_id to BadPrivateShare
                             for (bad_signer_id, bad_private_share) in bad_shares {
                                 // verify the DH tuple proof first so we know the shared key is correct
-                                let signer_public_key = &self.config.signer_public_keys[signer_id];
-                                let bad_signer_public_key =
-                                    &self.config.signer_public_keys[bad_signer_id];
+                                let Some(signer_key_ids) =
+                                    self.config.public_keys.signer_key_ids.get(signer_id)
+                                else {
+                                    warn!("No key IDs for signer_id {signer_id} DkgEnd");
+                                    continue;
+                                };
+                                let Some(signer_public_dsa_key) =
+                                    self.config.public_keys.signers.get(signer_id)
+                                else {
+                                    warn!("No public key for signer_id {signer_id} DkgEnd");
+                                    continue;
+                                };
+                                let signer_public_key = compute::point(signer_public_dsa_key)?;
+
+                                let Some(bad_signer_ecdsa_key) =
+                                    self.config.public_keys.signers.get(bad_signer_id)
+                                else {
+                                    warn!("Signer {signer_id} reported BadPrivateShare from invalid signer_id {bad_signer_id}, mark {signer_id} as malicious");
+                                    self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    continue;
+                                };
+                                let bad_signer_public_key = compute::point(bad_signer_ecdsa_key)?;
                                 let mut is_bad = false;
 
                                 if bad_private_share.tuple_proof.verify(
-                                    signer_public_key,
-                                    bad_signer_public_key,
+                                    &signer_public_key,
+                                    &bad_signer_public_key,
                                     &bad_private_share.shared_key,
                                 ) {
                                     // verify at least one bad private share for one of signer_id's key_ids
                                     let shared_secret =
                                         make_shared_secret_from_key(&bad_private_share.shared_key);
 
-                                    let dkg_public_shares = &self.dkg_public_shares[bad_signer_id]
+                                    let Some(bad_dkg_public_shares) =
+                                        self.dkg_public_shares.get(bad_signer_id)
+                                    else {
+                                        warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares , mark {signer_id} as malicious");
+                                        self.malicious_dkg_signer_ids.insert(*signer_id);
+                                        continue;
+                                    };
+                                    let dkg_public_shares = &bad_dkg_public_shares
                                         .comms
                                         .iter()
                                         .cloned()
                                         .collect::<HashMap<u32, PolyCommitment>>();
-                                    let dkg_private_shares =
-                                        &self.dkg_private_shares[bad_signer_id];
-                                    let signer_key_ids = &self.config.signer_key_ids[signer_id];
+                                    let Some(dkg_private_shares) =
+                                        self.dkg_private_shares.get(bad_signer_id)
+                                    else {
+                                        warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares , mark {signer_id} as malicious");
+                                        self.malicious_dkg_signer_ids.insert(*signer_id);
+                                        continue;
+                                    };
 
                                     for (src_party_id, key_shares) in &dkg_private_shares.shares {
                                         let poly = &dkg_public_shares[src_party_id];
@@ -808,14 +852,18 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             }
 
             // check that the signer_id exists in the config
-            let signer_public_keys = &self.config.signer_public_keys;
+            let signer_public_keys = &self.config.public_keys.signers;
             if !signer_public_keys.contains_key(&nonce_response.signer_id) {
                 warn!(signer_id = %nonce_response.signer_id, "No public key in config");
                 return Ok(());
             };
 
             // check that the key_ids match the config
-            let Some(signer_key_ids) = self.config.signer_key_ids.get(&nonce_response.signer_id)
+            let Some(signer_key_ids) = self
+                .config
+                .public_keys
+                .signer_key_ids
+                .get(&nonce_response.signer_id)
             else {
                 warn!(signer_id = %nonce_response.signer_id, "No keys IDs configured");
                 return Ok(());
@@ -954,30 +1002,18 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             );
             return Ok(());
         };
-        if response_info
+
+        let waiting = response_info
             .sign_wait_signer_ids
-            .contains(&sig_share_response.signer_id)
-        {
-            response_info
-                .sign_wait_signer_ids
-                .remove(&sig_share_response.signer_id);
-        } else {
+            .contains(&sig_share_response.signer_id);
+
+        if !waiting {
             warn!(
                 "Sign round {} SignatureShareResponse for round {} from signer {} not in the wait list",
                 self.current_sign_id, sig_share_response.sign_id, sig_share_response.signer_id,
             );
             return Ok(());
         }
-
-        debug!(
-            "Sign round {} SignatureShareResponse for round {} from signer {} ({}/{} key_ids). Waiting on {:?}",
-            self.current_sign_id,
-            sig_share_response.sign_id,
-            sig_share_response.signer_id,
-            response_info.sign_recv_key_ids.len(),
-            response_info.nonce_recv_key_ids.len(),
-            response_info.sign_wait_signer_ids
-        );
 
         if sig_share_response.dkg_id != self.current_dkg_id {
             return Err(Error::BadDkgId(
@@ -992,8 +1028,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             ));
         }
 
+        // we were waiting on you, and you sent a packet for this sign round, so we won't take
+        // another packet from you
+        response_info
+            .sign_wait_signer_ids
+            .remove(&sig_share_response.signer_id);
+
         // check that the signer_id exists in the config
-        let signer_public_keys = &self.config.signer_public_keys;
+        let signer_public_keys = &self.config.public_keys.signers;
         if !signer_public_keys.contains_key(&sig_share_response.signer_id) {
             warn!(signer_id = %sig_share_response.signer_id, "No public key in config");
             return Err(Error::MissingPublicKeyForSigner(
@@ -1004,6 +1046,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         // check that the key_ids match the config
         let Some(signer_key_ids) = self
             .config
+            .public_keys
             .signer_key_ids
             .get(&sig_share_response.signer_id)
         else {
@@ -1043,6 +1086,16 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 response_info.sign_recv_key_ids.insert(*key_id);
             }
         }
+
+        debug!(
+            "Sign round {} SignatureShareResponse for round {} from signer {} ({}/{} key_ids). Waiting on {:?}",
+            self.current_sign_id,
+            sig_share_response.sign_id,
+            sig_share_response.signer_id,
+            response_info.sign_recv_key_ids.len(),
+            response_info.nonce_recv_key_ids.len(),
+            response_info.sign_wait_signer_ids
+        );
 
         let message_nonce = self
             .message_nonces
@@ -1135,18 +1188,31 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         R
     }
 
-    fn compute_dkg_public_size(&self) -> u32 {
-        self.dkg_public_shares
-            .keys()
-            .map(|signer_id| self.config.signer_key_ids[signer_id].len() as u32)
-            .sum()
+    fn compute_num_key_ids<'a, I>(&self, signer_ids: I) -> Result<u32, Error>
+    where
+        I: Iterator<Item = &'a u32>,
+    {
+        signer_ids
+            .map(
+                |signer_id| match self.config.public_keys.signer_key_ids.get(signer_id) {
+                    Some(key_ids) => key_ids.len(),
+                    None => {
+                        error!("No key_ids for signer {signer_id}");
+                        0usize
+                    }
+                },
+            )
+            .sum::<usize>()
+            .try_into()
+            .map_err(Error::TryFromInt)
     }
 
-    fn compute_dkg_private_size(&self) -> u32 {
-        self.dkg_private_shares
-            .keys()
-            .map(|signer_id| self.config.signer_key_ids[signer_id].len() as u32)
-            .sum()
+    fn compute_dkg_public_size(&self) -> Result<u32, Error> {
+        self.compute_num_key_ids(self.dkg_public_shares.keys())
+    }
+
+    fn compute_dkg_private_size(&self) -> Result<u32, Error> {
+        self.compute_num_key_ids(self.dkg_private_shares.keys())
     }
 }
 
@@ -1227,6 +1293,7 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
             sign_start: None,
             malicious_signer_ids: Default::default(),
             malicious_dkg_signer_ids: Default::default(),
+            coordinator_public_key: None,
         }
     }
 
@@ -1256,6 +1323,7 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
             sign_start: state.sign_start,
             malicious_signer_ids: state.malicious_signer_ids.clone(),
             malicious_dkg_signer_ids: state.malicious_dkg_signer_ids.clone(),
+            coordinator_public_key: state.coordinator_public_key,
         }
     }
 
@@ -1284,12 +1352,22 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
             sign_start: self.sign_start,
             malicious_signer_ids: self.malicious_signer_ids.clone(),
             malicious_dkg_signer_ids: self.malicious_dkg_signer_ids.clone(),
+            coordinator_public_key: self.coordinator_public_key,
         }
     }
 
     /// Retrieve the config
     fn get_config(&self) -> Config {
         self.config.clone()
+    }
+
+    #[cfg(test)]
+    fn get_config_mut(&mut self) -> &mut Config {
+        &mut self.config
+    }
+
+    fn set_coordinator_public_key(&mut self, key: Option<ecdsa::PublicKey>) {
+        self.coordinator_public_key = key;
     }
 
     /// Set the aggregate key and polynomial commitments used to form that key.
@@ -1417,6 +1495,7 @@ pub mod test {
                     empty_private_shares, empty_public_shares, equal_after_save_load,
                     feedback_messages, feedback_mutated_messages, gen_nonces, invalid_nonce,
                     new_coordinator, run_dkg_sign, setup, setup_with_timeouts, start_dkg_round,
+                    verify_packet_sigs,
                 },
                 Config, Coordinator as CoordinatorTrait, State,
             },
@@ -3444,5 +3523,15 @@ pub mod test {
     #[test]
     fn empty_private_shares_v2() {
         empty_private_shares::<FireCoordinator<v2::Aggregator>, v2::Signer>(5, 2);
+    }
+
+    #[test]
+    fn verify_packet_sigs_v1() {
+        verify_packet_sigs::<FireCoordinator<v1::Aggregator>, v1::Signer>();
+    }
+
+    #[test]
+    fn verify_packet_sigs_v2() {
+        verify_packet_sigs::<FireCoordinator<v2::Aggregator>, v2::Signer>();
     }
 }

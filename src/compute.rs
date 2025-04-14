@@ -5,6 +5,7 @@ use sha2::{Digest, Sha256};
 use crate::{
     common::PublicNonce,
     curve::{
+        ecdsa,
         point::{Compressed, Error as PointError, Point, G},
         scalar::Scalar,
     },
@@ -184,4 +185,11 @@ pub fn merkle_root(data: &[u8]) -> [u8; 32] {
     hasher.update(data);
 
     hasher.finalize().into()
+}
+
+/// Get a Point from an ecdsa::PublicKey
+pub fn point(key: &ecdsa::PublicKey) -> Result<Point, PointError> {
+    let compressed = Compressed::from(key.to_bytes());
+    // this should not fail as long as the public key above was valid
+    Point::try_from(&compressed)
 }

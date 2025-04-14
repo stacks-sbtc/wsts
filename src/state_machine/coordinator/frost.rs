@@ -5,7 +5,7 @@ use tracing::{debug, info, warn};
 use crate::{
     common::{PolyCommitment, PublicNonce, Signature, SignatureShare},
     compute,
-    curve::point::Point,
+    curve::{ecdsa, point::Point},
     net::{
         DkgBegin, DkgEnd, DkgEndBegin, DkgPrivateBegin, DkgPrivateShares, DkgPublicShares,
         DkgStatus, Message, NonceRequest, NonceResponse, Packet, Signable, SignatureShareRequest,
@@ -50,6 +50,8 @@ pub struct Coordinator<Aggregator: AggregatorTrait> {
     pub state: State,
     /// Aggregator object
     aggregator: Aggregator,
+    /// coordinator public key
+    pub coordinator_public_key: Option<ecdsa::PublicKey>,
 }
 
 impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
@@ -58,6 +60,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         &mut self,
         packet: &Packet,
     ) -> Result<(Option<Packet>, Option<OperationResult>), Error> {
+        if self.config.verify_packet_sigs {
+            let Some(coordinator_public_key) = self.coordinator_public_key else {
+                return Err(Error::MissingCoordinatorPublicKey);
+            };
+            if !packet.verify(&self.config.public_keys, &coordinator_public_key) {
+                return Err(Error::InvalidPacketSignature);
+            }
+        }
         loop {
             match self.state.clone() {
                 State::Idle => {
@@ -287,7 +297,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             }
 
             // check that the signer_id exists in the config
-            let signer_public_keys = &self.config.signer_public_keys;
+            let signer_public_keys = &self.config.public_keys.signers;
             if !signer_public_keys.contains_key(&dkg_public_shares.signer_id) {
                 warn!(signer_id = %dkg_public_shares.signer_id, "No public key in config");
                 return Ok(());
@@ -333,7 +343,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             }
 
             // check that the signer_id exists in the config
-            let signer_public_keys = &self.config.signer_public_keys;
+            let signer_public_keys = &self.config.public_keys.signers;
             if !signer_public_keys.contains_key(&dkg_private_shares.signer_id) {
                 warn!(signer_id = %dkg_private_shares.signer_id, "No public key in config");
                 return Ok(());
@@ -480,14 +490,18 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             }
 
             // check that the signer_id exists in the config
-            let signer_public_keys = &self.config.signer_public_keys;
+            let signer_public_keys = &self.config.public_keys.signers;
             if !signer_public_keys.contains_key(&nonce_response.signer_id) {
                 warn!(signer_id = %nonce_response.signer_id, "No public key in config");
                 return Ok(());
             };
 
             // check that the key_ids match the config
-            let Some(signer_key_ids) = self.config.signer_key_ids.get(&nonce_response.signer_id)
+            let Some(signer_key_ids) = self
+                .config
+                .public_keys
+                .signer_key_ids
+                .get(&nonce_response.signer_id)
             else {
                 warn!(signer_id = %nonce_response.signer_id, "No keys IDs configured");
                 return Ok(());
@@ -594,7 +608,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             }
 
             // check that the signer_id exists in the config
-            let signer_public_keys = &self.config.signer_public_keys;
+            let signer_public_keys = &self.config.public_keys.signers;
             if !signer_public_keys.contains_key(&sig_share_response.signer_id) {
                 warn!(signer_id = %sig_share_response.signer_id, "No public key in config");
                 return Ok(());
@@ -603,6 +617,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             // check that the key_ids match the config
             let Some(signer_key_ids) = self
                 .config
+                .public_keys
                 .signer_key_ids
                 .get(&sig_share_response.signer_id)
             else {
@@ -801,6 +816,7 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
             message: Default::default(),
             ids_to_await: Default::default(),
             state: State::Idle,
+            coordinator_public_key: None,
         }
     }
 
@@ -823,6 +839,7 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
             message: state.message.clone(),
             ids_to_await: state.dkg_wait_signer_ids.clone(),
             state: state.state.clone(),
+            coordinator_public_key: state.coordinator_public_key,
         }
     }
 
@@ -861,12 +878,22 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
             sign_start: Default::default(),
             malicious_signer_ids: Default::default(),
             malicious_dkg_signer_ids: Default::default(),
+            coordinator_public_key: self.coordinator_public_key,
         }
     }
 
     /// Retrieve the config
     fn get_config(&self) -> Config {
         self.config.clone()
+    }
+
+    #[cfg(test)]
+    fn get_config_mut(&mut self) -> &mut Config {
+        &mut self.config
+    }
+
+    fn set_coordinator_public_key(&mut self, key: Option<ecdsa::PublicKey>) {
+        self.coordinator_public_key = key;
     }
 
     /// Set the aggregate key and polynomial commitments used to form that key.
@@ -976,7 +1003,7 @@ pub mod test {
             test::{
                 bad_signature_share_request, check_signature_shares, coordinator_state_machine,
                 empty_private_shares, empty_public_shares, equal_after_save_load, invalid_nonce,
-                new_coordinator, run_dkg_sign, setup, start_dkg_round,
+                new_coordinator, run_dkg_sign, setup, start_dkg_round, verify_packet_sigs,
             },
             Config, Coordinator as CoordinatorTrait, State,
         },
@@ -1434,7 +1461,8 @@ pub mod test {
 
     fn old_round_ids_are_ignored<Aggregator: AggregatorTrait>() {
         let mut rng = create_rng();
-        let config = Config::new(10, 40, 28, Scalar::random(&mut rng));
+        let mut config = Config::new(10, 40, 28, Scalar::random(&mut rng));
+        config.verify_packet_sigs = false;
         let mut coordinator = FrostCoordinator::<Aggregator>::new(config);
         let id: u64 = 10;
         let old_id = id.saturating_sub(1);
@@ -1519,5 +1547,15 @@ pub mod test {
     #[test]
     fn empty_private_shares_v2() {
         empty_private_shares::<FrostCoordinator<v2::Aggregator>, v2::Signer>(5, 2);
+    }
+
+    #[test]
+    fn verify_packet_sigs_v1() {
+        verify_packet_sigs::<FrostCoordinator<v1::Aggregator>, v1::Signer>();
+    }
+
+    #[test]
+    fn verify_packet_sigs_v2() {
+        verify_packet_sigs::<FrostCoordinator<v2::Aggregator>, v2::Signer>();
     }
 }
