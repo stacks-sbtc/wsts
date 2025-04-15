@@ -181,8 +181,8 @@ pub fn merkle_root(data: &[u8]) -> [u8; 32] {
 }
 
 /// Get a Point from an ecdsa::PublicKey
-pub fn point(key: &ecdsa::PublicKey) -> Point {
+pub fn point(key: &ecdsa::PublicKey) -> Result<Point, PointError> {
     let compressed = Compressed::from(key.to_bytes());
     // this should not fail as long as the public key above was valid
-    Point::try_from(&compressed).unwrap()
+    Point::try_from(&compressed)
 }
