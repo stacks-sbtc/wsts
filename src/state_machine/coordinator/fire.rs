@@ -185,13 +185,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 self.malicious_signer_ids.insert(*signer_id);
                             }
 
-                            let num_malicious_keys: u32 = self
+                            let num_malicious_keys: usize = self
                                 .malicious_signer_ids
                                 .iter()
                                 .map(|signer_id| {
-                                    self.config.public_keys.signer_key_ids[signer_id].len() as u32
+                                    self.config.public_keys.signer_key_ids[signer_id].len()
                                 })
                                 .sum();
+                            let num_malicious_keys: u32 = num_malicious_keys.try_into()?;
 
                             if self.config.num_keys - num_malicious_keys < self.config.threshold {
                                 error!("Insufficient non-malicious signers, unable to continue");
@@ -648,10 +649,11 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             for (bad_signer_id, bad_private_share) in bad_shares {
                                 // verify the DH tuple proof first so we know the shared key is correct
                                 let signer_public_key =
-                                    compute::point(&self.config.public_keys.signers[signer_id]);
+                                    compute::point(&self.config.public_keys.signers[signer_id])?;
 
-                                let bad_signer_public_key =
-                                    compute::point(&self.config.public_keys.signers[bad_signer_id]);
+                                let bad_signer_public_key = compute::point(
+                                    &self.config.public_keys.signers[bad_signer_id],
+                                )?;
                                 let mut is_bad = false;
 
                                 if bad_private_share.tuple_proof.verify(

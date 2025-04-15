@@ -1,12 +1,16 @@
 use crate::{
     common::{PolyCommitment, Signature, SignatureShare},
-    curve::{ecdsa, point::Point, scalar::Scalar},
+    curve::{
+        ecdsa,
+        point::{Error as PointError, Point},
+        scalar::Scalar,
+    },
     errors::AggregatorError,
     net::{DkgEnd, DkgPrivateShares, DkgPublicShares, NonceResponse, Packet, SignatureType},
     state_machine::{DkgFailure, OperationResult, PublicKeys, StateMachine},
     taproot::SchnorrProof,
 };
-use core::{cmp::PartialEq, fmt::Debug};
+use core::{cmp::PartialEq, fmt::Debug, num::TryFromIntError};
 use hashbrown::{HashMap, HashSet};
 use std::{
     collections::BTreeMap,
@@ -96,6 +100,12 @@ pub enum Error {
     #[error("A packet had an invalid signature")]
     /// A packet had an invalid signature
     InvalidPacketSignature,
+    #[error("A curve point error {0}")]
+    /// A curve point error
+    Point(#[from] PointError),
+    #[error("integer conversion error")]
+    /// An error during integer conversion operations
+    TryFromInt(#[from] TryFromIntError),
 }
 
 impl From<AggregatorError> for Error {
