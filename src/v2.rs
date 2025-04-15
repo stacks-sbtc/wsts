@@ -1,3 +1,5 @@
+use std::fmt;
+
 use hashbrown::{HashMap, HashSet};
 use num_traits::{One, Zero};
 use polynomial::Polynomial;
@@ -18,7 +20,7 @@ use crate::{
     vss::VSS,
 };
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Eq, PartialEq)]
 /// A WSTS party, which encapsulates a single polynomial, nonce, and one private key per key ID
 pub struct Party {
     /// The party ID
@@ -33,6 +35,19 @@ pub struct Party {
     private_keys: HashMap<u32, Scalar>,
     group_key: Point,
     nonce: Nonce,
+}
+
+impl fmt::Debug for Party {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Party")
+            .field("part_id", &self.party_id)
+            .field("key_ids", &self.key_ids)
+            .field("num_keys", &self.num_keys)
+            .field("num_parties", &self.num_parties)
+            .field("threshold", &self.threshold)
+            .field("group_key", &self.group_key)
+            .finish_non_exhaustive()
+    }
 }
 
 impl Party {

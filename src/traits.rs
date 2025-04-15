@@ -3,6 +3,7 @@ use hashbrown::{HashMap, HashSet};
 use polynomial::Polynomial;
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use crate::{
     common::{MerkleRoot, Nonce, PolyCommitment, PublicNonce, Signature, SignatureShare},
@@ -11,7 +12,7 @@ use crate::{
     taproot::SchnorrProof,
 };
 
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Deserialize, Serialize, PartialEq)]
 /// The saved state required to reconstruct a party
 pub struct PartyState {
     /// The party's private polynomial
@@ -20,6 +21,12 @@ pub struct PartyState {
     pub private_keys: Vec<(u32, Scalar)>,
     /// The nonce being used by this party
     pub nonce: Nonce,
+}
+
+impl fmt::Debug for PartyState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("PartyState").finish_non_exhaustive()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
