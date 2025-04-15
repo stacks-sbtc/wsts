@@ -15,7 +15,7 @@ use crate::{
     compute,
     curve::{
         ecdsa,
-        point::{Compressed, Point, G},
+        point::{Compressed, Error as PointError, Point, G},
         scalar::Scalar,
     },
     errors::{DkgError, EncryptionError},
@@ -102,6 +102,9 @@ pub enum Error {
     #[error("A packet had an invalid signature")]
     /// A packet had an invalid signature
     InvalidPacketSignature,
+    #[error("A curve point error {0}")]
+    /// A curve point error
+    Point(#[from] PointError),
 }
 
 /// The saved state required to reconstruct a signer
@@ -913,7 +916,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             for (dst_key_id, private_share) in shares {
                 if active_key_ids.contains(dst_key_id) {
                     debug!("encrypting dkg private share for key_id {dst_key_id}");
-                    let dst_public_key = compute::point(&self.public_keys.key_ids[dst_key_id]);
+                    let dst_public_key = compute::point(&self.public_keys.key_ids[dst_key_id])?;
                     let shared_secret =
                         make_shared_secret(&self.network_private_key, &dst_public_key);
                     let encrypted_share = encrypt(&shared_secret, &private_share.to_bytes(), rng)?;
