@@ -17,69 +17,73 @@ jobs:
     name: check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          persist-credentials: false
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+      - name: Checkout Repository
+        id: checkout_repository
+        uses: stacks-sbtc/actions/checkout@main
+
+      - name: Setup Rust
+        id: setup_rust
+        uses: stacks-sbtc/actions/setup-rust-toolchain@main
+
+      - name: Cargo Check
+        id: cargo_check
+        run: |
+          cargo check
 
   test-all:
     name: test-all
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          persist-credentials: false
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
+      - name: Checkout Repository
+        id: checkout_repository
+        uses: stacks-sbtc/actions/checkout@main
+
+      - name: Setup Rust
+        id: setup_rust
+        uses: stacks-sbtc/actions/setup-rust-toolchain@main
+
+      - name: Cargo Test
+        id: cargo_test
+        run: |
+          cargo test
 
   fmt:
     name: fmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout Repository
+        id: checkout_repository
+        uses: stacks-sbtc/actions/checkout@main
+
+      - name: Setup Rust
+        id: setup_rust
+        uses: stacks-sbtc/actions/setup-rust-toolchain@main
         with:
-          persist-credentials: false
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+          components: rustfmt
+
+      - name: Cargo Fmt
+        id: cargo_fmt
+        run: |
+          cargo fmt --all -- --check
 
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - name: Checkout Repository
+        id: checkout_repository
+        uses: stacks-sbtc/actions/checkout@main
+
+      - name: Setup Rust
+        id: setup_rust
+        uses: stacks-sbtc/actions/setup-rust-toolchain@main
         with:
-          persist-credentials: false
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: -- -D warnings -A clippy::op-ref -A clippy::needless-range-loop
+          components: clippy
+
+      - name: Cargo Clippy
+        id: cargo_clippy
+        run: |
+          cargo clippy -- -D warnings -A clippy::op-ref -A clippy::needless-range-loop
 
   doc:
     permissions:
@@ -87,25 +91,32 @@ jobs:
       pages: write
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-        with:
-          persist-credentials: false
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - name: Checkout Repository
+        id: checkout_repository
+        uses: stacks-sbtc/actions/checkout@main
+
+      - name: Setup Rust
+        id: setup_rust
+        uses: stacks-sbtc/actions/setup-rust-toolchain@main
+
       - name: Install LaTeX
+        id: install_latex
         run: ./.doc/install-latex-ubuntu.sh
-      - name: Build WebSite
+
+      - name: Build Website
+        id: build_website
         run: ./.doc/build.sh
-      - name: upload pdf
-        uses: actions/upload-artifact@v4
+
+      - name: Upload PDF
+        id: upload_pdf
+        uses: stacks-sbtc/actions/upload-artifact@main
         with:
           name: wsts.pdf
           path: wsts.pdf
-      - name: upload website
-        uses: actions/upload-artifact@v4
+
+      - name: Upload Website
+        id: upload_website
+        uses: stacks-sbtc/actions/upload-artifact@main
         with:
           name: website
           path: ./target/doc/
