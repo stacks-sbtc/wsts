@@ -28,7 +28,7 @@ use crate::{
 };
 
 #[cfg(test)]
-use crate::net::{Signable, Packet};
+use crate::net::{Packet, Signable};
 
 #[derive(Debug, Clone, PartialEq)]
 /// Signer states
@@ -93,7 +93,7 @@ pub enum Error {
     Encryption(#[from] EncryptionError),
     #[error("integer conversion error")]
     /// An error during integer conversion operations
-    TryFromInt(#[from] TryFromIntError)
+    TryFromInt(#[from] TryFromIntError),
 }
 
 /// The saved state required to reconstruct a signer
@@ -161,23 +161,13 @@ impl fmt::Debug for SavedState {
             .field("signer_id", &self.signer_id)
             .field("state", &self.state)
             .field("commitments", &self.commitments)
-            .field(
-                "decrypted_shares",
-                &format!("<{} shares>", self.decrypted_shares.len()),
-            )
-            .field(
-                "decryption_keys",
-                &format!("<{} keys>", self.decryption_keys.len()),
-            )
             .field("invalid_private_shares", &self.invalid_private_shares)
             .field("public_nonces", &self.public_nonces)
-            .field("network_private_key", &"<redacted>")
             .field("public_keys", &self.public_keys)
             .field("dkg_public_shares", &self.dkg_public_shares)
-            .field("dkg_private_shares", &self.dkg_private_shares)
             .field("dkg_private_begin_msg", &self.dkg_private_begin_msg)
             .field("dkg_end_begin_msg", &self.dkg_end_begin_msg)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -246,23 +236,13 @@ impl<SignerType: SignerTrait> fmt::Debug for Signer<SignerType> {
             .field("signer_id", &self.signer_id)
             .field("state", &self.state)
             .field("commitments", &self.commitments)
-            .field(
-                "decrypted_shares",
-                &format!("<{} shares>", self.decrypted_shares.len()),
-            )
-            .field(
-                "decryption_keys",
-                &format!("<{} keys>", self.decryption_keys.len()),
-            )
             .field("invalid_private_shares", &self.invalid_private_shares)
             .field("public_nonces", &self.public_nonces)
-            .field("network_private_key", &"<redacted>")
             .field("public_keys", &self.public_keys)
             .field("dkg_public_shares", &self.dkg_public_shares)
-            .field("dkg_private_shares", &self.dkg_private_shares)
             .field("dkg_private_begin_msg", &self.dkg_private_begin_msg)
             .field("dkg_end_begin_msg", &self.dkg_end_begin_msg)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -421,8 +401,8 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             for out in outbounds {
                 let msg = Packet {
                     sig: out
-                        .sign(&self.network_private_key).
-                        expect("Failed to sign message"),
+                        .sign(&self.network_private_key)
+                        .expect("Failed to sign message"),
                     msg: out,
                 };
                 responses.push(msg);

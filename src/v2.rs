@@ -45,14 +45,8 @@ impl fmt::Debug for Party {
             .field("num_keys", &self.num_keys)
             .field("num_parties", &self.num_parties)
             .field("threshold", &self.threshold)
-            .field("f", &"<redacted>")
-            .field(
-                "private_keys",
-                &format!("<{} keys>", self.private_keys.len()),
-            )
             .field("group_key", &self.group_key)
-            .field("nonce", &"<redacted>")
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 

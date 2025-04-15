@@ -25,14 +25,7 @@ pub struct PartyState {
 
 impl fmt::Debug for PartyState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("PartyState")
-            .field("polynomal", &self.polynomial)
-            .field(
-                "private_keys",
-                &format!("<{} keys>", self.private_keys.len()),
-            )
-            .field("nonce", &"<redacted>")
-            .finish()
+        f.debug_struct("PartyState").finish_non_exhaustive()
     }
 }
 

@@ -60,10 +60,7 @@ pub struct Nonce {
 
 impl fmt::Debug for Nonce {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Nonce")
-            .field("d", &"<redacted>")
-            .field("e", &"<redacted>")
-            .finish()
+        f.debug_struct("Nonce").finish_non_exhaustive()
     }
 }
 

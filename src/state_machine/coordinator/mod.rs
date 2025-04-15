@@ -133,7 +133,6 @@ impl fmt::Debug for Config {
             .field("num_signers", &self.num_signers)
             .field("num_keys", &self.num_keys)
             .field("dkg_threshold", &self.dkg_threshold)
-            .field("message_private_key", &"<redacted>")
             .field("dkg_public_timeout", &self.dkg_public_timeout)
             .field("dkg_private_timeout", &self.dkg_private_timeout)
             .field("dkg_end_timeout", &self.dkg_end_timeout)
@@ -141,7 +140,7 @@ impl fmt::Debug for Config {
             .field("sign_timeout", &self.sign_timeout)
             .field("signer_key_ids", &self.signer_key_ids)
             .field("signer_public_keys", &self.signer_public_keys)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
