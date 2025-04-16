@@ -14,7 +14,7 @@ use crate::{
 };
 
 #[allow(non_snake_case)]
-/// Compute a binding value from the party ID, public nonces, and signed message
+/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
 pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Result<Scalar, EllipticCurveError> {
     let prefix = b"WSTS/binding";
 
@@ -33,7 +33,7 @@ pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Result<Scalar, Ell
 }
 
 #[allow(non_snake_case)]
-/// Compute a binding value from the party ID, public nonces, and signed message
+/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
 pub fn binding_compressed(
     id: &Scalar,
     B: &[(Compressed, Compressed)],
