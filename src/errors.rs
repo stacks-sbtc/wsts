@@ -1,5 +1,6 @@
 use aes_gcm::Error as AesGcmError;
 use core::num::TryFromIntError;
+use elliptic_curve::Error as EllipticCurveError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -22,15 +23,18 @@ pub enum DkgError {
     BadPrivateShares(Vec<u32>),
     #[error("point error {0:?}")]
     /// An error during point operations
-    Point(PointError),
+    Point(#[from] PointError),
     #[error("integer conversion error")]
     /// An error during integer conversion operations
     TryFromInt,
+    /// An error during elliptic curve operations
+    #[error("elliptic curve error {0}")]
+    EllipticCurveError(String),
 }
 
-impl From<PointError> for DkgError {
-    fn from(e: PointError) -> Self {
-        DkgError::Point(e)
+impl From<EllipticCurveError> for DkgError {
+    fn from(e: EllipticCurveError) -> Self {
+        Self::EllipticCurveError(e.to_string())
     }
 }
 
@@ -61,11 +65,23 @@ pub enum AggregatorError {
     #[error("integer conversion error")]
     /// An error during integer conversion operations
     TryFromInt,
+    /// An error during point operations
+    #[error("point error {0:?}")]
+    Point(#[from] PointError),
+    #[error("elliptic curve error {0}")]
+    /// An error during elliptic curve operations
+    EllipticCurveError(String),
 }
 
 impl From<TryFromIntError> for AggregatorError {
     fn from(_e: TryFromIntError) -> Self {
         Self::TryFromInt
+    }
+}
+
+impl From<EllipticCurveError> for AggregatorError {
+    fn from(e: EllipticCurveError) -> Self {
+        Self::EllipticCurveError(e.to_string())
     }
 }
 

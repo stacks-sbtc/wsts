@@ -30,15 +30,15 @@ impl SchnorrProof {
     /// Verify a BIP-340 schnorr proof
     #[allow(non_snake_case)]
     pub fn verify(&self, public_key: &field::Element, msg: &[u8]) -> bool {
-        let Y = match Point::lift_x(public_key) {
-            Ok(Y) => Y,
-            Err(_) => return false,
+        let Ok(Y) = Point::lift_x(public_key) else {
+            return false;
         };
-        let R = match Point::lift_x(&self.r) {
-            Ok(R) => R,
-            Err(_) => return false,
+        let Ok(R) = Point::lift_x(&self.r) else {
+            return false;
         };
-        let c = compute::challenge(&Y, &R, msg);
+        let Ok(c) = compute::challenge(&Y, &R, msg) else {
+            return false;
+        };
         let Rp = self.s * G - c * Y;
 
         Rp.has_even_y() && Rp.x() == self.r
@@ -167,7 +167,7 @@ mod test {
         let mut d = Scalar::random(&mut rng);
         let mut P = d * G;
         let msg = "sign me";
-        let c = compute::challenge(&P, &R, msg.as_bytes());
+        let c = compute::challenge(&P, &R, msg.as_bytes()).expect("Failed to compute challenge");
 
         println!("P.has_even_y {}", P.has_even_y());
         println!("R.has_even_y {}", R.has_even_y());
@@ -181,7 +181,7 @@ mod test {
         }
 
         println!("P.has_even_y {}", P.has_even_y());
-        let c = compute::challenge(&P, &R, msg.as_bytes());
+        let c = compute::challenge(&P, &R, msg.as_bytes()).expect("Failed to compute challenge");
         let s = r - c * d;
         assert!(R == s * G + c * P);
 
@@ -196,7 +196,8 @@ mod test {
             let Pp = Point::lift_x(&P.x()).unwrap();
             assert!(Pp == (-d) * G);
             let R = Point::lift_x(&proof.r).unwrap();
-            let e = compute::challenge(&P, &R, msg.as_bytes());
+            let e =
+                compute::challenge(&P, &R, msg.as_bytes()).expect("Failed to compute challenge");
             let Rp = proof.s * G - e * Pp;
             assert!(Rp.has_even_y());
             assert_eq!(Rp.x(), proof.r);
@@ -204,7 +205,7 @@ mod test {
         assert!(proof.verify(&P.x(), msg.as_bytes()));
 
         let Q = Point::lift_x(&P.x()).unwrap();
-        let c = compute::challenge(&Q, &R, msg.as_bytes());
+        let c = compute::challenge(&Q, &R, msg.as_bytes()).expect("Failed to compute challenge");
         println!("Q.has_even_y {}", Q.has_even_y());
 
         assert!(Q != P);
@@ -224,7 +225,8 @@ mod test {
         {
             let P = Point::lift_x(&Q.x()).unwrap();
             let R = Point::lift_x(&proof.r).unwrap();
-            let e = compute::challenge(&Q, &R, msg.as_bytes());
+            let e =
+                compute::challenge(&Q, &R, msg.as_bytes()).expect("Failed to compute challenge");
             //let e = c.clone();
             let Rp = proof.s * G - e * P;
             assert!(Rp.has_even_y());
@@ -246,7 +248,7 @@ mod test {
         assert!((d * G).x() == S.x());
         assert!((d * G) == S);
 
-        let c = compute::challenge(&S, &R, msg.as_bytes());
+        let c = compute::challenge(&S, &R, msg.as_bytes()).expect("Failed to compute challenge");
         let s = r - c * d;
         assert!(R == s * G + c * S);
 
@@ -257,7 +259,8 @@ mod test {
         {
             let P = Point::lift_x(&S.x()).unwrap();
             let R = Point::lift_x(&proof.r).unwrap();
-            let e = compute::challenge(&S, &R, msg.as_bytes());
+            let e =
+                compute::challenge(&S, &R, msg.as_bytes()).expect("Failed to compute challenge");
             //let e = c.clone();
             let Rp = proof.s * G - e * P;
             assert!(Rp.has_even_y());
@@ -274,7 +277,7 @@ mod test {
         assert!((e * G).x() == T.x());
         assert!((e * G) == T);
 
-        let c = compute::challenge(&T, &R, msg.as_bytes());
+        let c = compute::challenge(&T, &R, msg.as_bytes()).expect("Failed to compute challenge");
         let s = r - c * e;
         assert!(R == s * G + c * T);
 

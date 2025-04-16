@@ -1,5 +1,6 @@
 use std::fmt;
 
+use elliptic_curve::Error as EllipticCurveError;
 use hashbrown::{HashMap, HashSet};
 use num_traits::{One, Zero};
 use polynomial::Polynomial;
@@ -214,18 +215,23 @@ impl Party {
     }
 
     /// Sign `msg` with this party's share of the group private key, using the set of `signers` and corresponding `nonces`
-    pub fn sign(&self, msg: &[u8], signers: &[u32], nonces: &[PublicNonce]) -> SignatureShare {
-        let (_, aggregate_nonce) = compute::intermediate(msg, signers, nonces);
-        let mut z = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
-        z += compute::challenge(&self.group_key, &aggregate_nonce, msg)
+    pub fn sign(
+        &self,
+        msg: &[u8],
+        signers: &[u32],
+        nonces: &[PublicNonce],
+    ) -> Result<SignatureShare, EllipticCurveError> {
+        let (_, aggregate_nonce) = compute::intermediate(msg, signers, nonces)?;
+        let mut z = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg)?;
+        z += compute::challenge(&self.group_key, &aggregate_nonce, msg)?
             * &self.private_key
             * compute::lambda(self.id, signers);
 
-        SignatureShare {
+        Ok(SignatureShare {
             id: self.id,
             z_i: z,
             key_ids: vec![self.id],
-        }
+        })
     }
 
     /// Sign `msg` with this party's share of the group private key, using the set of `signers` and corresponding `nonces` with a precomputed `aggregate_nonce`
@@ -235,7 +241,7 @@ impl Party {
         signers: &[u32],
         nonces: &[PublicNonce],
         aggregate_nonce: &Point,
-    ) -> SignatureShare {
+    ) -> Result<SignatureShare, EllipticCurveError> {
         self.sign_precomputed_with_tweak(msg, signers, nonces, aggregate_nonce, None)
     }
 
@@ -250,8 +256,8 @@ impl Party {
         nonces: &[PublicNonce],
         aggregate_nonce: &Point,
         tweak: Option<Scalar>,
-    ) -> SignatureShare {
-        let mut r = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
+    ) -> Result<SignatureShare, EllipticCurveError> {
+        let mut r = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg)?;
         if tweak.is_some() && !aggregate_nonce.has_even_y() {
             r = -r;
         }
@@ -279,18 +285,18 @@ impl Party {
             self.group_key
         };
 
-        let c = compute::challenge(&tweaked_public_key, aggregate_nonce, msg);
+        let c = compute::challenge(&tweaked_public_key, aggregate_nonce, msg)?;
         let mut cx = c * &self.private_key * compute::lambda(self.id, signers);
 
         cx = cx_sign * cx;
 
         let z = r + cx;
 
-        SignatureShare {
+        Ok(SignatureShare {
             id: self.id,
             z_i: z,
             key_ids: vec![self.id],
-        }
+        })
     }
 }
 
@@ -323,7 +329,7 @@ impl Aggregator {
         }
 
         let signers: Vec<u32> = sig_shares.iter().map(|ss| ss.id).collect();
-        let (_Rs, R) = compute::intermediate(msg, &signers, nonces);
+        let (_Rs, R) = compute::intermediate(msg, &signers, nonces)?;
         let mut z = Scalar::zero();
         let mut cx_sign = Scalar::one();
         let aggregate_public_key = self.poly[0];
@@ -337,7 +343,7 @@ impl Aggregator {
             }
             _ => aggregate_public_key,
         };
-        let c = compute::challenge(&tweaked_public_key, &R, msg);
+        let c = compute::challenge(&tweaked_public_key, &R, msg)?;
 
         for sig_share in sig_shares {
             z += sig_share.z_i;
@@ -370,7 +376,10 @@ impl Aggregator {
         }
 
         let signers: Vec<u32> = sig_shares.iter().map(|ss| ss.id).collect();
-        let (Rs, R) = compute::intermediate(msg, &signers, nonces);
+        let (Rs, R) = match compute::intermediate(msg, &signers, nonces) {
+            Ok(res) => res,
+            Err(e) => return e.into(),
+        };
         let mut bad_party_keys = Vec::new();
         let mut bad_party_sigs = Vec::new();
         let aggregate_public_key = self.poly[0];
@@ -380,7 +389,10 @@ impl Aggregator {
             }
             _ => aggregate_public_key,
         };
-        let c = compute::challenge(&tweaked_public_key, &R, msg);
+        let c = match compute::challenge(&tweaked_public_key, &R, msg) {
+            Ok(res) => res,
+            Err(e) => return e.into(),
+        };
         let mut r_sign = Scalar::one();
         let mut cx_sign = Scalar::one();
         if let Some(t) = tweak {
@@ -690,7 +702,7 @@ impl traits::Signer for Signer {
         key_ids: &[u32],
         nonces: &[PublicNonce],
     ) -> (Vec<Point>, Point) {
-        compute::intermediate(msg, key_ids, nonces)
+        compute::intermediate(msg, key_ids, nonces).unwrap()
     }
 
     fn validate_party_id(
@@ -714,7 +726,10 @@ impl traits::Signer for Signer {
         let aggregate_nonce = compute::aggregate_nonce(msg, key_ids, nonces).unwrap();
         self.parties
             .iter()
-            .map(|p| p.sign_precomputed(msg, key_ids, nonces, &aggregate_nonce))
+            .map(|p| {
+                p.sign_precomputed(msg, key_ids, nonces, &aggregate_nonce)
+                    .unwrap()
+            })
             .collect()
     }
 
@@ -732,6 +747,7 @@ impl traits::Signer for Signer {
             .iter()
             .map(|p| {
                 p.sign_precomputed_with_tweak(msg, key_ids, nonces, &aggregate_nonce, Some(tweak))
+                    .unwrap()
             })
             .collect()
     }
@@ -754,6 +770,7 @@ impl traits::Signer for Signer {
                     &aggregate_nonce,
                     Some(Scalar::from(0)),
                 )
+                .unwrap()
             })
             .collect()
     }
