@@ -448,14 +448,22 @@ pub mod test {
 
         if let Message::DkgBegin(dkg_begin) = result.unwrap().msg {
             if let Some(id) = dkg_id {
-                assert_eq!(dkg_begin.dkg_id, id);
+                assert_eq!(
+                    dkg_begin.dkg_id, id,
+                    "Bad dkg_id {} expected {id}",
+                    dkg_begin.dkg_id
+                );
             } else {
-                assert_eq!(dkg_begin.dkg_id, 1);
+                assert_eq!(
+                    dkg_begin.dkg_id, 1,
+                    "Bad dkg_id {} expected 1",
+                    dkg_begin.dkg_id
+                );
             }
         } else {
-            panic!("Bad dkg_id");
+            panic!("coordinator.start_dkg_round didn't return DkgBegin");
         };
-        assert_eq!(dkg_begin.dkg_id, 1);
+
         assert_eq!(coordinator.get_state(), State::DkgPublicGather);
     }
 
