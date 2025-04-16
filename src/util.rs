@@ -31,7 +31,7 @@ pub const AES_GCM_NONCE_SIZE: usize = 12;
 /// - The domain separation tag (`dst`) is longer than 255 bytes.
 /// - The message or tag is otherwise malformed or incompatible with the expander.
 pub fn expand_to_scalar(msg: &[u8], dst: &[u8]) -> Result<Scalar, EllipticCurveError> {
-    // The requested output length (32 bytes) means that the underlying has function will not fail.
+    // The requested output length (32 bytes) means that the underlying hash function will not fail.
     let mut buf = [0u8; 32];
     // This will only fail if the dst and msg are malformed byte slices or dst.len() exceeds 255 bytes.
     ExpandMsgXmd::<Sha256>::expand_message(&[msg], &[dst], buf.len())?.fill_bytes(&mut buf);
