@@ -227,7 +227,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                         // that we start the next round at the correct id. (Do this rather
                         // than overwriting afterwards to ensure logging is accurate)
                         self.current_dkg_id = dkg_begin.dkg_id.wrapping_sub(1);
-                        let packet = self.start_dkg_round()?;
+                        let packet = self.start_dkg_round(None)?;
                         return Ok((Some(packet), None));
                     } else if let Message::NonceRequest(nonce_request) = &packet.msg {
                         if self.current_sign_id >= nonce_request.sign_id {
@@ -1345,9 +1345,13 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
         self.state.clone()
     }
 
-    /// Start a DKG round
-    fn start_dkg_round(&mut self) -> Result<Packet, Error> {
-        self.current_dkg_id = self.current_dkg_id.wrapping_add(1);
+    /// Start a DKG round, with an optional `dkg_id`
+    fn start_dkg_round(&mut self, dkg_id: Option<u64>) -> Result<Packet, Error> {
+        if let Some(id) = dkg_id {
+            self.current_dkg_id = id;
+        } else {
+            self.current_dkg_id = self.current_dkg_id.wrapping_add(1);
+        }
         info!("Starting DKG round {}", self.current_dkg_id);
         self.move_to(State::DkgPublicDistribute)?;
         self.start_public_shares()
@@ -1449,12 +1453,14 @@ pub mod test {
 
     #[test]
     fn start_dkg_round_v1() {
-        start_dkg_round::<FireCoordinator<v1::Aggregator>>();
+        start_dkg_round::<FireCoordinator<v1::Aggregator>>(None);
+        start_dkg_round::<FireCoordinator<v1::Aggregator>>(Some(12345u64));
     }
 
     #[test]
     fn start_dkg_round_v2() {
-        start_dkg_round::<FireCoordinator<v2::Aggregator>>();
+        start_dkg_round::<FireCoordinator<v2::Aggregator>>(None);
+        start_dkg_round::<FireCoordinator<v2::Aggregator>>(Some(12345u64));
     }
 
     #[test]
@@ -1853,7 +1859,11 @@ pub mod test {
             setup::<FireCoordinator<Aggregator>, SignerType>(num_signers, keys_per_signer);
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
         assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
 
@@ -1925,7 +1935,11 @@ pub mod test {
             );
 
         // Start a DKG round where we will not allow all signers to recv DkgBegin, so they will not respond with DkgPublicShares
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
         assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
 
@@ -2006,7 +2020,11 @@ pub mod test {
             );
 
         // Start a DKG round where we will not allow all signers to recv DkgBegin, so they will not respond with DkgPublicShares
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
         assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
 
@@ -2149,7 +2167,11 @@ pub mod test {
         );
 
         // Start a DKG round where we will not allow all signers to recv DkgBegin, so they will not respond with DkgPublicShares
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
         assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
 
@@ -2287,7 +2309,11 @@ pub mod test {
             setup::<FireCoordinator<Aggregator>, SignerType>(num_signers, keys_per_signer);
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
         assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
 
@@ -2396,7 +2422,11 @@ pub mod test {
             setup::<FireCoordinator<Aggregator>, SignerType>(num_signers, keys_per_signer);
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
         assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
 
@@ -2731,7 +2761,11 @@ pub mod test {
         let config = coordinators.first().unwrap().get_config();
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
         assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
 
@@ -3190,7 +3224,11 @@ pub mod test {
         signers[0].signer.reset_polys(&mut rng);
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators
             .first_mut()
             .unwrap()
@@ -3277,7 +3315,11 @@ pub mod test {
             setup::<FireCoordinator<Aggregator>, SignerType>(10, 1);
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators
             .first_mut()
             .unwrap()
