@@ -623,7 +623,13 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             // bad_shares is a set of signer_ids
                             for bad_signer_id in bad_shares {
                                 // verify public shares are bad
-                                let dkg_public_shares = &self.dkg_public_shares[bad_signer_id];
+                                let Some(dkg_public_shares) =
+                                    self.dkg_public_shares.get(bad_signer_id)
+                                else {
+                                    warn!("Signer {signer_id} reported BadPublicShares from invalid signer_id {bad_signer_id}, mark {signer_id} as malicious");
+                                    self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    continue;
+                                };
                                 let mut bad_party_ids = Vec::new();
                                 for (party_id, comm) in &dkg_public_shares.comms {
                                     if !check_public_shares(comm, threshold) {
@@ -651,9 +657,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 let signer_public_key =
                                     compute::point(&self.config.public_keys.signers[signer_id])?;
 
-                                let bad_signer_public_key = compute::point(
-                                    &self.config.public_keys.signers[bad_signer_id],
-                                )?;
+                                let Some(bad_signer_ecdsa_key) =
+                                    self.config.public_keys.signers.get(bad_signer_id)
+                                else {
+                                    warn!("Signer {signer_id} reported BadPrivateShare from invalid signer_id {bad_signer_id}, mark {signer_id} as malicious");
+                                    self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    continue;
+                                };
+                                let bad_signer_public_key = compute::point(bad_signer_ecdsa_key)?;
                                 let mut is_bad = false;
 
                                 if bad_private_share.tuple_proof.verify(
@@ -665,13 +676,25 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     let shared_secret =
                                         make_shared_secret_from_key(&bad_private_share.shared_key);
 
-                                    let dkg_public_shares = &self.dkg_public_shares[bad_signer_id]
+                                    let Some(bad_dkg_public_shares) =
+                                        self.dkg_public_shares.get(bad_signer_id)
+                                    else {
+                                        warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares , mark {signer_id} as malicious");
+                                        self.malicious_dkg_signer_ids.insert(*signer_id);
+                                        continue;
+                                    };
+                                    let dkg_public_shares = &bad_dkg_public_shares
                                         .comms
                                         .iter()
                                         .cloned()
                                         .collect::<HashMap<u32, PolyCommitment>>();
-                                    let dkg_private_shares =
-                                        &self.dkg_private_shares[bad_signer_id];
+                                    let Some(dkg_private_shares) =
+                                        &self.dkg_private_shares.get(bad_signer_id)
+                                    else {
+                                        warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares , mark {signer_id} as malicious");
+                                        self.malicious_dkg_signer_ids.insert(*signer_id);
+                                        continue;
+                                    };
                                     let signer_key_ids =
                                         &self.config.public_keys.signer_key_ids[signer_id];
 
