@@ -188,10 +188,11 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             let num_malicious_keys: usize = self
                                 .malicious_signer_ids
                                 .iter()
-                                .map(|signer_id| {
-                                    self.config.public_keys.signer_key_ids[signer_id].len()
+                                .flat_map(|signer_id| {
+                                    self.config.public_keys.signer_key_ids.get(signer_id)
                                 })
-                                .sum();
+                                .flatten()
+                                .count();
                             let num_malicious_keys: u32 = num_malicious_keys.try_into()?;
 
                             if self.config.num_keys - num_malicious_keys < self.config.threshold {
