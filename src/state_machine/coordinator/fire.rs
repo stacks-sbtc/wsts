@@ -1,3 +1,4 @@
+use core::num::TryFromIntError;
 use hashbrown::{HashMap, HashSet};
 use std::{collections::BTreeMap, time::Instant};
 use tracing::{debug, error, info, warn};
@@ -1167,24 +1168,22 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         R
     }
 
-    fn compute_dkg_public_size(&self) -> Result<u32, Error> {
+    fn compute_dkg_public_size(&self) -> Result<u32, TryFromIntError> {
         self.dkg_public_shares
             .keys()
             .flat_map(|signer_id| self.config.public_keys.signer_key_ids.get(signer_id))
             .flatten()
             .count()
             .try_into()
-            .map_err(Error::TryFromInt)
     }
 
-    fn compute_dkg_private_size(&self) -> Result<u32, Error> {
+    fn compute_dkg_private_size(&self) -> Result<u32, TryFromIntError> {
         self.dkg_private_shares
             .keys()
             .flat_map(|signer_id| self.config.public_keys.signer_key_ids.get(signer_id))
             .flatten()
             .count()
             .try_into()
-            .map_err(Error::TryFromInt)
     }
 }
 
