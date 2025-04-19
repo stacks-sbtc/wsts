@@ -79,7 +79,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                     if let Some(timeout) = self.config.dkg_public_timeout {
                         if now.duration_since(start) > timeout {
                             // check dkg_threshold to determine if we can continue
-                            let dkg_size = self.compute_dkg_public_size();
+                            let dkg_size = self.compute_dkg_public_size()?;
 
                             if self.config.dkg_threshold > dkg_size {
                                 error!("Timeout gathering DkgPublicShares for dkg round {} signing round {} iteration {}, dkg_threshold not met ({dkg_size}/{}), unable to continue", self.current_dkg_id, self.current_sign_id, self.current_sign_iter_id, self.config.dkg_threshold);
@@ -107,7 +107,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                     if let Some(timeout) = self.config.dkg_private_timeout {
                         if now.duration_since(start) > timeout {
                             // check dkg_threshold to determine if we can continue
-                            let dkg_size = self.compute_dkg_private_size();
+                            let dkg_size = self.compute_dkg_private_size()?;
 
                             if self.config.dkg_threshold > dkg_size {
                                 error!("Timeout gathering DkgPrivateShares for dkg round {} signing round {} iteration {}, dkg_threshold not met ({dkg_size}/{}), unable to continue", self.current_dkg_id, self.current_sign_id, self.current_sign_iter_id, self.config.dkg_threshold);
@@ -691,7 +691,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                         .cloned()
                                         .collect::<HashMap<u32, PolyCommitment>>();
                                     let Some(dkg_private_shares) =
-                                        &self.dkg_private_shares.get(bad_signer_id)
+                                        self.dkg_private_shares.get(bad_signer_id)
                                     else {
                                         warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares , mark {signer_id} as malicious");
                                         self.malicious_dkg_signer_ids.insert(*signer_id);
@@ -1163,18 +1163,24 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         R
     }
 
-    fn compute_dkg_public_size(&self) -> u32 {
+    fn compute_dkg_public_size(&self) -> Result<u32, Error> {
         self.dkg_public_shares
             .keys()
-            .map(|signer_id| self.config.public_keys.signer_key_ids[signer_id].len() as u32)
-            .sum()
+            .flat_map(|signer_id| self.config.public_keys.signer_key_ids.get(signer_id))
+            .flatten()
+            .count()
+            .try_into()
+            .map_err(Error::TryFromInt)
     }
 
-    fn compute_dkg_private_size(&self) -> u32 {
+    fn compute_dkg_private_size(&self) -> Result<u32, Error> {
         self.dkg_private_shares
             .keys()
-            .map(|signer_id| self.config.public_keys.signer_key_ids[signer_id].len() as u32)
-            .sum()
+            .flat_map(|signer_id| self.config.public_keys.signer_key_ids.get(signer_id))
+            .flatten()
+            .count()
+            .try_into()
+            .map_err(Error::TryFromInt)
     }
 }
 
