@@ -7,6 +7,7 @@ use num_traits::{One, Zero};
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::fmt;
 
 use crate::{
     compute::challenge,
@@ -48,13 +49,19 @@ impl Display for PolyCommitment {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Eq, PartialEq, Deserialize, Serialize)]
 /// A composite private nonce used as a random commitment in the protocol
 pub struct Nonce {
     /// The first committed value
     pub d: Scalar,
     /// The second committed value
     pub e: Scalar,
+}
+
+impl fmt::Debug for Nonce {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Nonce").finish_non_exhaustive()
+    }
 }
 
 impl Nonce {
