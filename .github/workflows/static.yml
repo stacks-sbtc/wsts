@@ -28,18 +28,28 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@f43a0e5ff2bd294095638e18286ca9a3d1956744 #v3.6.0
+      - name: Checkout Repository
+        id: checkout_repository
+        uses: stacks-sbtc/actions/checkout@main
+
       - name: Setup Pages
-        uses: actions/configure-pages@b8130d9ab958b325bbde9786d62f2c97a9885a0e #v3.0.7
+        id: setup_pages
+        uses: stacks-sbtc/actions/github-pages/configure-pages@main
+
       - name: Install LaTeX
+        id: install_latex
         run: ./.doc/install-latex-ubuntu.sh
-      - name: Build WebSite
+
+      - name: Build Website
+        id: build_website
         run: ./.doc/build.sh
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa #v3.0.1
+
+      - name: Upload Artifact
+        id: upload_artifact
+        uses: stacks-sbtc/actions/github-pages/upload-pages-artifact@main
         with:
           path: './target/doc/'
+
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e #v4.0.5
+        id: deploy_pages
+        uses: stacks-sbtc/actions/github-pages/deploy-pages@main
