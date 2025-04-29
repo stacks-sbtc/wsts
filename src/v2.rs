@@ -86,11 +86,12 @@ impl Party {
     /// Get a public commitment to the private polynomial
     pub fn get_poly_commitment<RNG: RngCore + CryptoRng>(
         &self,
+        ctx: &[u8],
         rng: &mut RNG,
     ) -> Option<PolyCommitment> {
         if let Some(poly) = &self.f {
             Some(PolyCommitment {
-                id: ID::new(&self.id(), &poly.data()[0], rng),
+                id: ID::new(&self.id(), &poly.data()[0], ctx, rng),
                 poly: (0..poly.data().len())
                     .map(|i| &poly.data()[i] * G)
                     .collect(),
@@ -123,6 +124,7 @@ impl Party {
         &mut self,
         private_shares: &HashMap<u32, HashMap<u32, Scalar>>,
         public_shares: &HashMap<u32, PolyCommitment>,
+        ctx: &[u8],
     ) -> Result<(), DkgError> {
         self.private_keys.clear();
         self.group_key = Point::zero();
@@ -131,7 +133,7 @@ impl Party {
 
         let mut bad_ids = Vec::new();
         for (i, comm) in public_shares.iter() {
-            if !check_public_shares(comm, threshold) {
+            if !check_public_shares(comm, threshold, ctx) {
                 bad_ids.push(*i);
             } else {
                 self.group_key += comm.poly[0];
@@ -566,8 +568,12 @@ impl traits::Signer for Party {
         self.num_parties
     }
 
-    fn get_poly_commitments<RNG: RngCore + CryptoRng>(&self, rng: &mut RNG) -> Vec<PolyCommitment> {
-        if let Some(poly) = self.get_poly_commitment(rng) {
+    fn get_poly_commitments<RNG: RngCore + CryptoRng>(
+        &self,
+        ctx: &[u8],
+        rng: &mut RNG,
+    ) -> Vec<PolyCommitment> {
+        if let Some(poly) = self.get_poly_commitment(ctx, rng) {
             vec![poly.clone()]
         } else {
             vec![]
@@ -594,6 +600,7 @@ impl traits::Signer for Party {
         &mut self,
         private_shares: &HashMap<u32, HashMap<u32, Scalar>>,
         polys: &HashMap<u32, PolyCommitment>,
+        ctx: &[u8],
     ) -> Result<(), HashMap<u32, DkgError>> {
         // go through the shares, looking for this party's
         let mut key_shares = HashMap::new();
@@ -607,7 +614,7 @@ impl traits::Signer for Party {
             key_shares.insert(dest_key_id, shares);
         }
 
-        match self.compute_secret(&key_shares, polys) {
+        match self.compute_secret(&key_shares, polys, ctx) {
             Ok(()) => Ok(()),
             Err(dkg_error) => {
                 let mut dkg_errors = HashMap::new();
@@ -692,9 +699,10 @@ pub mod test_helpers {
         signers: &mut [v2::Party],
         rng: &mut RNG,
     ) -> Result<HashMap<u32, PolyCommitment>, HashMap<u32, DkgError>> {
+        let ctx = 0u64.to_be_bytes();
         let mut polys: HashMap<u32, PolyCommitment> = Default::default();
         for signer in signers.iter() {
-            if let Some(poly) = signer.get_poly_commitment(rng) {
+            if let Some(poly) = signer.get_poly_commitment(&ctx, rng) {
                 polys.insert(signer.get_id(), poly);
             }
         }
@@ -722,7 +730,7 @@ pub mod test_helpers {
                 party_shares.insert(key_id, key_shares);
             }
 
-            if let Err(secret_error) = party.compute_secret(&party_shares, &polys) {
+            if let Err(secret_error) = party.compute_secret(&party_shares, &polys, &ctx) {
                 secret_errors.insert(party.party_id, secret_error);
             }
         }
@@ -785,6 +793,7 @@ mod tests {
 
     #[test]
     fn clear_polys() {
+        let ctx = 0u64.to_be_bytes();
         let mut rng = create_rng();
         let key_ids = [1, 2, 3];
         let n: u32 = 10;
@@ -792,12 +801,12 @@ mod tests {
 
         let mut signer = v2::Party::new(0, &key_ids, 1, n, t, &mut rng);
 
-        assert_eq!(signer.get_poly_commitments(&mut rng).len(), 1);
+        assert_eq!(signer.get_poly_commitments(&ctx, &mut rng).len(), 1);
         assert_eq!(signer.get_shares().len(), usize::try_from(n).unwrap());
 
         signer.clear_polys();
 
-        assert_eq!(signer.get_poly_commitments(&mut rng).len(), 0);
+        assert_eq!(signer.get_poly_commitments(&ctx, &mut rng).len(), 0);
         assert_eq!(signer.get_shares().len(), 0);
     }
 
