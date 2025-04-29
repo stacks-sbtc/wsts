@@ -713,6 +713,7 @@ mod test {
 
     #[test]
     fn dkg_public_shares_verify_msg() {
+        let ctx = 0u64.to_be_bytes();
         let mut rng = create_rng();
         let test_config = TestConfig::default();
         let public_shares = DkgPublicShares {
@@ -721,7 +722,7 @@ mod test {
             comms: vec![(
                 0,
                 PolyCommitment {
-                    id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                    id: ID::new(&Scalar::new(), &Scalar::new(), &ctx, &mut rng),
                     poly: vec![],
                 },
             )],

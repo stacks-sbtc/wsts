@@ -503,7 +503,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                     missing_public_shares.insert(*signer_id);
                 } else {
                     for (party_id, comm) in shares.comms.iter() {
-                        if !check_public_shares(comm, threshold) {
+                        if !check_public_shares(comm, threshold, &self.dkg_id.to_be_bytes()) {
                             bad_public_shares.insert(*signer_id);
                         } else {
                             self.commitments.insert(*party_id, comm.clone());
@@ -558,10 +558,11 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         }
 
         let dkg_end = if self.invalid_private_shares.is_empty() {
-            match self
-                .signer
-                .compute_secrets(&self.decrypted_shares, &self.commitments)
-            {
+            match self.signer.compute_secrets(
+                &self.decrypted_shares,
+                &self.commitments,
+                &self.dkg_id.to_be_bytes(),
+            ) {
                 Ok(()) => DkgEnd {
                     dkg_id: self.dkg_id,
                     signer_id: self.signer_id,
@@ -807,7 +808,9 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         rng: &mut R,
     ) -> Result<Vec<Message>, Error> {
         let mut msgs = vec![];
-        let comms = self.signer.get_poly_commitments(rng);
+        let comms = self
+            .signer
+            .get_poly_commitments(&self.dkg_id.to_be_bytes(), rng);
 
         info!(
             signer_id = %self.signer_id,
@@ -1271,6 +1274,7 @@ pub mod test {
     }
 
     fn dkg_public_share<SignerType: SignerTrait>() {
+        let ctx = 0u64.to_be_bytes();
         let mut rng = create_rng();
         let private_key = Scalar::random(&mut rng);
         let public_key = ecdsa::PublicKey::new(&private_key).unwrap();
@@ -1288,7 +1292,7 @@ pub mod test {
                 .unwrap();
         let comms: Vec<(u32, PolyCommitment)> = signer
             .signer
-            .get_poly_commitments(&mut rng)
+            .get_poly_commitments(&ctx, &mut rng)
             .iter()
             .map(|comm| (comm.id.id.get_u32(), comm.clone()))
             .collect();
@@ -1307,7 +1311,7 @@ pub mod test {
             comms: vec![(
                 0,
                 PolyCommitment {
-                    id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                    id: ID::new(&Scalar::new(), &Scalar::new(), &ctx, &mut rng),
                     poly: vec![],
                 },
             )],
@@ -1331,6 +1335,7 @@ pub mod test {
     }
 
     fn public_shares_done<SignerType: SignerTrait>() {
+        let ctx = 0u64.to_be_bytes();
         let mut rng = create_rng();
         let mut signer = Signer::<SignerType>::new(
             1,
@@ -1352,7 +1357,7 @@ pub mod test {
         signer.commitments.insert(
             1,
             PolyCommitment {
-                id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                id: ID::new(&Scalar::new(), &Scalar::new(), &ctx, &mut rng),
                 poly: vec![],
             },
         );
