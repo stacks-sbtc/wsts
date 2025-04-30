@@ -967,7 +967,11 @@ pub mod test {
         }
 
         // We have started a dkg round
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert!(coordinators
             .first_mut()
             .unwrap()
@@ -1043,7 +1047,11 @@ pub mod test {
             signer.coordinator_public_key = None;
         }
 
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert_eq!(
             coordinators.first_mut().unwrap().get_state(),
             State::DkgPublicGather
@@ -1075,7 +1083,11 @@ pub mod test {
             signer.coordinator_public_key = Some(coordinator_public_key);
         }
 
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert_eq!(
             coordinators.first_mut().unwrap().get_state(),
             State::DkgPublicGather
@@ -1108,7 +1120,11 @@ pub mod test {
             signer.coordinator_public_key = Some(coordinator_public_key);
         }
 
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert_eq!(
             coordinators.first_mut().unwrap().get_state(),
             State::DkgPublicGather
@@ -1141,7 +1157,11 @@ pub mod test {
             signer.coordinator_public_key = Some(coordinator_public_key);
         }
 
-        let message = coordinators.first_mut().unwrap().start_dkg_round().unwrap();
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
         assert_eq!(
             coordinators.first_mut().unwrap().get_state(),
             State::DkgPublicGather
