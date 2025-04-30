@@ -18,9 +18,9 @@ pub struct ID {
     /// ID
     pub id: Scalar,
     /// Commitment to the proof random value
-    pub R: Point,
+    pub random_commitment: Point,
     /// Sigma protocol response
-    pub s: Scalar,
+    pub sigma_response: Scalar,
 }
 
 #[allow(non_snake_case)]
@@ -28,41 +28,45 @@ impl ID {
     /// Construct a new schnorr ID that proves ownership of private key `x` bound to `id`
     pub fn new<RNG: RngCore + CryptoRng>(id: &Scalar, x: &Scalar, rng: &mut RNG) -> Self {
         let r = Scalar::random(rng);
-        let R = r * G;
-        let X = x * G;
-        let c = Self::challenge(id, &R, &X);
-        let s = r + c * x;
+        let random_commitment = r * G;
+        let public_key = x * G;
+        let c = Self::challenge(id, &random_commitment, &public_key);
+        let sigma_response = r + c * x;
 
-        Self { id: *id, R, s }
+        Self {
+            id: *id,
+            random_commitment,
+            sigma_response,
+        }
     }
 
     /// Compute the schnorr challenge
-    pub fn challenge(id: &Scalar, R: &Point, X: &Point) -> Scalar {
+    pub fn challenge(id: &Scalar, random_commitment: &Point, public_key: &Point) -> Scalar {
         let mut hasher = Sha256::new();
         let tag = "WSTS/polynomial-constant";
 
         hasher.update(tag.as_bytes());
         hasher.update(id.to_bytes());
-        hasher.update(R.compress().as_bytes());
-        hasher.update(X.compress().as_bytes());
+        hasher.update(random_commitment.compress().as_bytes());
+        hasher.update(public_key.compress().as_bytes());
 
         hash_to_scalar(&mut hasher)
     }
 
-    /// Verify the proof against the public key `X`
-    pub fn verify(&self, X: &Point) -> bool {
-        let c = Self::challenge(&self.id, &self.R, X);
-        &self.s * &G == &self.R + c * X
+    /// Verify the proof against the public key
+    pub fn verify(&self, public_key: &Point) -> bool {
+        let c = Self::challenge(&self.id, &self.random_commitment, public_key);
+        &self.sigma_response * &G == &self.random_commitment + c * public_key
     }
 
     /// Zero out the schnorr proof
     pub fn zero(&mut self) {
-        self.R = Point::new();
-        self.s = Scalar::zero();
+        self.random_commitment = Point::new();
+        self.sigma_response = Scalar::zero();
     }
 
     /// Check if schnorr proof is zeroed out
     pub fn is_zero(&self) -> bool {
-        self.R == Point::new() && self.s == Scalar::zero()
+        self.random_commitment == Point::new() && self.sigma_response == Scalar::zero()
     }
 }
