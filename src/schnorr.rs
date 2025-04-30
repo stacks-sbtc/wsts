@@ -24,7 +24,10 @@ pub struct ID {
 
 #[allow(non_snake_case)]
 impl ID {
-    /// Construct a new schnorr ID which binds the passed `Scalar` `id` and `Scalar` `a`, with a zero-knowledge proof of ownership of `a`
+    /// Construct a new schnorr ID which binds the passed `Scalar` `id` and `Scalar` `a`, with a
+    /// zero-knowledge proof of ownership of `a`.  The `ctx` is a common reference string used to
+    /// prevent replay attacks; it can be any length, but will typically be a `u64` value in
+    /// big endian format.
     pub fn new<RNG: RngCore + CryptoRng>(
         id: &Scalar,
         a: &Scalar,
