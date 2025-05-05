@@ -96,8 +96,12 @@ impl Party {
     }
 
     /// Generate and store a private nonce for a signing round
-    pub fn gen_nonce<RNG: RngCore + CryptoRng>(&mut self, rng: &mut RNG) -> PublicNonce {
-        self.nonce = Nonce::random(rng);
+    pub fn gen_nonce<RNG: RngCore + CryptoRng>(
+        &mut self,
+        secret_key: &Scalar,
+        rng: &mut RNG,
+    ) -> PublicNonce {
+        self.nonce = Nonce::random(secret_key, rng);
 
         PublicNonce::from(&self.nonce)
     }
@@ -664,8 +668,15 @@ impl traits::Signer for Signer {
         }
     }
 
-    fn gen_nonces<RNG: RngCore + CryptoRng>(&mut self, rng: &mut RNG) -> Vec<PublicNonce> {
-        self.parties.iter_mut().map(|p| p.gen_nonce(rng)).collect()
+    fn gen_nonces<RNG: RngCore + CryptoRng>(
+        &mut self,
+        secret_key: &Scalar,
+        rng: &mut RNG,
+    ) -> Vec<PublicNonce> {
+        self.parties
+            .iter_mut()
+            .map(|p| p.gen_nonce(secret_key, rng))
+            .collect()
     }
 
     fn compute_intermediate(
@@ -745,6 +756,7 @@ impl traits::Signer for Signer {
 
 /// Helper functions for tests
 pub mod test_helpers {
+    use super::Scalar;
     use crate::common::{PolyCommitment, PublicNonce};
     use crate::errors::DkgError;
     use crate::traits::Signer;
@@ -791,8 +803,12 @@ pub mod test_helpers {
         signers: &mut [v1::Signer],
         rng: &mut RNG,
     ) -> (Vec<PublicNonce>, Vec<v1::SignatureShare>) {
+        let secret_key = Scalar::random(rng);
         let ids: Vec<u32> = signers.iter().flat_map(|s| s.get_key_ids()).collect();
-        let nonces: Vec<PublicNonce> = signers.iter_mut().flat_map(|s| s.gen_nonces(rng)).collect();
+        let nonces: Vec<PublicNonce> = signers
+            .iter_mut()
+            .flat_map(|s| s.gen_nonces(&secret_key, rng))
+            .collect();
         let shares = signers
             .iter()
             .flat_map(|s| s.sign(msg, &ids, &ids, &nonces))
@@ -804,6 +820,7 @@ pub mod test_helpers {
 
 #[cfg(test)]
 mod tests {
+    use super::Scalar;
     use crate::traits;
     use crate::traits::test_helpers::run_compute_secrets_missing_private_shares;
     use crate::traits::{Aggregator, Signer};
@@ -829,6 +846,7 @@ mod tests {
     #[test]
     fn signer_gen_nonces() {
         let mut rng = create_rng();
+        let secret_key = Scalar::random(&mut rng);
         let id = 1;
         let key_ids = [1, 2, 3];
         let n: u32 = 10;
@@ -840,7 +858,7 @@ mod tests {
             assert!(party.nonce.is_zero());
         }
 
-        let nonces = signer.gen_nonces(&mut rng);
+        let nonces = signer.gen_nonces(&secret_key, &mut rng);
 
         assert_eq!(nonces.len(), key_ids.len());
 

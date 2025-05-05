@@ -95,7 +95,11 @@ pub trait Signer: Clone + Debug + PartialEq {
     ) -> Result<(), HashMap<u32, DkgError>>;
 
     /// Generate all nonces for this signer
-    fn gen_nonces<RNG: RngCore + CryptoRng>(&mut self, rng: &mut RNG) -> Vec<PublicNonce>;
+    fn gen_nonces<RNG: RngCore + CryptoRng>(
+        &mut self,
+        secret_key: &Scalar,
+        rng: &mut RNG,
+    ) -> Vec<PublicNonce>;
 
     /// Compute intermediate values
     fn compute_intermediate(

@@ -676,7 +676,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         let mut msgs = vec![];
         let signer_id = self.signer_id;
         let key_ids = self.signer.get_key_ids();
-        let nonces = self.signer.gen_nonces(rng);
+        let nonces = self.signer.gen_nonces(&self.network_private_key, rng);
 
         let response = NonceResponse {
             dkg_id: nonce_request.dkg_id,
@@ -765,7 +765,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                 SignatureType::Frost => self.signer.sign(msg, &signer_ids, &key_ids, &nonces),
             };
 
-            self.signer.gen_nonces(rng);
+            self.signer.gen_nonces(&self.network_private_key, rng);
 
             let response = SignatureShareResponse {
                 dkg_id: sign_request.dkg_id,
