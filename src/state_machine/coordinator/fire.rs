@@ -2876,7 +2876,7 @@ pub mod test {
                 operation_result.unwrap(),
                 OperationResult::SignError(SignError::NonceTimeout(..))
             ),
-            "Expected OperationResult::SignError(Signrror::NonceTimeout"
+            "Expected OperationResult::SignError(SignError::NonceTimeout)"
         );
 
         // Start a new signing round with a sufficient number of signers for nonces but not sig shares
