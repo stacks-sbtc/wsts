@@ -65,7 +65,7 @@ pub struct Coordinator<Aggregator: AggregatorTrait> {
 }
 
 impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
-    /// Process the message inside the passed packet
+    /// Check the timeout
     pub fn process_timeout(&mut self) -> Result<(Option<Packet>, Option<OperationResult>), Error> {
         let now = Instant::now();
         match self.state.clone() {
@@ -209,6 +209,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         }
         Ok((None, None))
     }
+
     /// Process the message inside the passed packet
     pub fn process_message(
         &mut self,
@@ -1297,34 +1298,6 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
         Ok(())
     }
 
-    /// Process inbound messages
-    fn process_inbound_messages(
-        &mut self,
-        packets: &[Packet],
-    ) -> Result<(Vec<Packet>, Vec<OperationResult>), Error> {
-        let mut outbound_packets = vec![];
-        let mut operation_results = vec![];
-        for packet in packets {
-            let (outbound_packet, operation_result) = self.process_message(packet)?;
-            if let Some(outbound_packet) = outbound_packet {
-                outbound_packets.push(outbound_packet);
-            }
-            if let Some(operation_result) = operation_result {
-                operation_results.push(operation_result);
-            }
-        }
-
-        let (outbound_packet, operation_result) = self.process_timeout()?;
-        if let Some(outbound_packet) = outbound_packet {
-            outbound_packets.push(outbound_packet);
-        }
-        if let Some(operation_result) = operation_result {
-            operation_results.push(operation_result);
-        }
-
-        Ok((outbound_packets, operation_results))
-    }
-
     /// Retrieve the aggregate public key
     fn get_aggregate_public_key(&self) -> Option<Point> {
         self.aggregate_public_key
@@ -1352,9 +1325,25 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
         } else {
             self.current_dkg_id = self.current_dkg_id.wrapping_add(1);
         }
+
         info!("Starting DKG round {}", self.current_dkg_id);
         self.move_to(State::DkgPublicDistribute)?;
         self.start_public_shares()
+    }
+
+    /// Process the timeouts, and if none of them fire then process the passed packet
+    /// If a timeout does fire, then the coordinator state has changed; this means the
+    /// packet is now stale and must be dropped
+    fn process(
+        &mut self,
+        packet: &Packet,
+    ) -> Result<(Option<Packet>, Option<OperationResult>), Error> {
+        let (outbound_packet, operation_result) = self.process_timeout()?;
+        if outbound_packet.is_some() || operation_result.is_some() {
+            return Ok((outbound_packet, operation_result));
+        }
+
+        self.process_message(packet)
     }
 
     /// Start a signing round
@@ -1980,11 +1969,11 @@ pub mod test {
         let (outbound_messages, operation_results) = minimum_coordinators
             .first_mut()
             .unwrap()
-            .process_inbound_messages(&[])
+            .process_timeout()
             .unwrap();
 
-        assert_eq!(outbound_messages.len(), 1);
-        assert!(operation_results.is_empty());
+        assert!(outbound_messages.is_some());
+        assert!(operation_results.is_none());
         assert_eq!(
             minimum_coordinators.first().unwrap().state,
             State::DkgPrivateGather,
@@ -2008,25 +1997,17 @@ pub mod test {
     ) -> (Vec<FireCoordinator<Aggregator>>, Vec<Signer<SignerType>>) {
         let timeout = Duration::from_millis(1024);
         let expire = Duration::from_millis(1280);
-        let (mut coordinators, signers) =
-            setup_with_timeouts::<FireCoordinator<Aggregator>, SignerType>(
-                num_signers,
-                keys_per_signer,
-                Some(timeout),
-                Some(timeout),
-                Some(timeout),
-                Some(timeout),
-                Some(timeout),
-            );
+        let (coordinators, signers) = setup_with_timeouts::<FireCoordinator<Aggregator>, SignerType>(
+            num_signers,
+            keys_per_signer,
+            Some(timeout),
+            Some(timeout),
+            Some(timeout),
+            Some(timeout),
+            Some(timeout),
+        );
 
         // Start a DKG round where we will not allow all signers to recv DkgBegin, so they will not respond with DkgPublicShares
-        let message = coordinators
-            .first_mut()
-            .unwrap()
-            .start_dkg_round(None)
-            .unwrap();
-        assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
-        assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
 
         // DKG threshold is 9/10, so need to remove 1
         let num_signers_to_remove = 1;
@@ -2035,6 +2016,21 @@ pub mod test {
         let mut minimum_signers = signers.clone();
 
         minimum_signers.truncate(minimum_signers.len().saturating_sub(num_signers_to_remove));
+
+        let message = minimum_coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
+        assert!(minimum_coordinators
+            .first()
+            .unwrap()
+            .aggregate_public_key
+            .is_none());
+        assert_eq!(
+            minimum_coordinators.first().unwrap().state,
+            State::DkgPublicGather
+        );
 
         // Send the DKG Begin message to minimum signers and gather responses by sharing with signers and coordinator
         let (outbound_messages, operation_results) = feedback_messages(
@@ -2056,26 +2052,26 @@ pub mod test {
         let (outbound_messages, operation_results) = minimum_coordinators
             .first_mut()
             .unwrap()
-            .process_inbound_messages(&[])
+            .process_timeout()
             .unwrap();
 
-        assert_eq!(outbound_messages.len(), 1);
-        assert!(operation_results.is_empty());
+        assert!(outbound_messages.is_some());
+        assert!(operation_results.is_none());
         assert_eq!(
             minimum_coordinators.first().unwrap().state,
             State::DkgPrivateGather,
         );
 
         // Run DKG again with fresh coordinator and signers, this time allow gathering DkgPublicShares but timeout getting DkgEnd
-        let mut minimum_coordinator = coordinators.clone();
+        let mut minimum_coordinators = coordinators.clone();
         let mut minimum_signers = signers.clone();
 
         // Send the DKG Begin message to all signers and gather responses by sharing with all other signers and coordinator
         let (outbound_messages, operation_results) =
-            feedback_messages(&mut minimum_coordinator, &mut minimum_signers, &[message]);
+            feedback_messages(&mut minimum_coordinators, &mut minimum_signers, &[message]);
         assert!(operation_results.is_empty());
         assert_eq!(
-            minimum_coordinator.first().unwrap().state,
+            minimum_coordinators.first().unwrap().state,
             State::DkgPrivateGather
         );
 
@@ -2090,42 +2086,45 @@ pub mod test {
 
         // Send the DKG Private Begin message to minimum signers and share their responses with the coordinator and signers
         let (outbound_messages, operation_results) = feedback_messages(
-            &mut minimum_coordinator,
+            &mut minimum_coordinators,
             &mut minimum_signers,
             &outbound_messages,
         );
         assert!(outbound_messages.is_empty());
         assert!(operation_results.is_empty());
         assert_eq!(
-            minimum_coordinator.first().unwrap().state,
+            minimum_coordinators.first().unwrap().state,
             State::DkgPrivateGather,
         );
 
         // Sleep long enough to hit the timeout
         thread::sleep(expire);
 
-        let (outbound_messages, operation_results) = minimum_coordinator
+        let (outbound_message, operation_result) = minimum_coordinators
             .first_mut()
             .unwrap()
-            .process_inbound_messages(&[])
+            .process_timeout()
             .unwrap();
 
-        assert_eq!(outbound_messages.len(), 1);
-        assert!(operation_results.is_empty());
+        assert!(outbound_message.is_some());
+        assert!(operation_result.is_none());
         assert!(
-            matches!(outbound_messages[0].msg, Message::DkgEndBegin(_)),
+            matches!(
+                outbound_message.clone().unwrap().msg,
+                Message::DkgEndBegin(_)
+            ),
             "Expected DkgEndBegin message"
         );
         assert_eq!(
-            minimum_coordinator.first().unwrap().state,
+            minimum_coordinators.first().unwrap().state,
             State::DkgEndGather,
         );
 
         // Send the DkgEndBegin message to all signers and share their responses with the coordinator and signers
         let (outbound_messages, operation_results) = feedback_messages(
-            &mut minimum_coordinator,
+            &mut minimum_coordinators,
             &mut minimum_signers,
-            &outbound_messages,
+            &[outbound_message.unwrap()],
         );
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
@@ -2133,12 +2132,12 @@ pub mod test {
             panic!("Expected Dkg Operation result");
         };
         assert_ne!(point, Point::default());
-        for coordinator in minimum_coordinator.iter() {
+        for coordinator in minimum_coordinators.iter() {
             assert_eq!(coordinator.get_aggregate_public_key(), Some(point));
             assert_eq!(coordinator.get_state(), State::Idle);
         }
 
-        (minimum_coordinator, minimum_signers)
+        (minimum_coordinators, minimum_signers)
     }
 
     #[test]
@@ -2156,7 +2155,7 @@ pub mod test {
         let expire = Duration::from_millis(1280);
         let num_signers = 10;
         let keys_per_signer = 2;
-        let (mut coordinators, signers) = setup_with_timeouts::<FireCoordinator<Aggregator>, Signer>(
+        let (coordinators, signers) = setup_with_timeouts::<FireCoordinator<Aggregator>, Signer>(
             num_signers,
             keys_per_signer,
             Some(timeout),
@@ -2167,13 +2166,6 @@ pub mod test {
         );
 
         // Start a DKG round where we will not allow all signers to recv DkgBegin, so they will not respond with DkgPublicShares
-        let message = coordinators
-            .first_mut()
-            .unwrap()
-            .start_dkg_round(None)
-            .unwrap();
-        assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
-        assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
 
         // DKG threshold is 9/10, so need to remove 2
         let num_signers_to_remove = 2;
@@ -2185,6 +2177,21 @@ pub mod test {
             insufficient_signers
                 .len()
                 .saturating_sub(num_signers_to_remove),
+        );
+
+        let message = insufficient_coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
+        assert!(insufficient_coordinators
+            .first()
+            .unwrap()
+            .aggregate_public_key
+            .is_none());
+        assert_eq!(
+            insufficient_coordinators.first().unwrap().state,
+            State::DkgPublicGather
         );
 
         // Send the DKG Begin message to insufficient signers and gather responses by sharing with signers and coordinator
@@ -2204,24 +2211,24 @@ pub mod test {
         // Sleep long enough to hit the timeout
         thread::sleep(expire);
 
-        let (outbound_messages, operation_results) = insufficient_coordinators
+        let (outbound_message, operation_result) = insufficient_coordinators
             .first_mut()
             .unwrap()
-            .process_inbound_messages(&[])
+            .process_timeout()
             .unwrap();
 
-        assert!(outbound_messages.is_empty());
-        assert_eq!(operation_results.len(), 1);
+        assert!(outbound_message.is_none());
+        assert!(operation_result.is_some());
         assert_eq!(
             insufficient_coordinators.first().unwrap().state,
             State::DkgPublicGather,
         );
         assert!(
             matches!(
-                operation_results[0],
+                operation_result.unwrap(),
                 OperationResult::DkgError(DkgError::DkgPublicTimeout(_))
             ),
-            "Expected OperationResult::DkgError(DkgError::DkgPublicTimeout)"
+            "Expected OperationResult::DkgError(DkgError::DkgPublicTimeout"
         );
 
         // Run DKG again with fresh coordinator and signers, this time allow gathering DkgPublicShares but timeout getting DkgEnd
@@ -2270,21 +2277,21 @@ pub mod test {
         // Sleep long enough to hit the timeout
         thread::sleep(expire);
 
-        let (outbound_messages, operation_results) = insufficient_coordinator
+        let (outbound_message, operation_result) = insufficient_coordinator
             .first_mut()
             .unwrap()
-            .process_inbound_messages(&[])
+            .process_timeout()
             .unwrap();
 
-        assert!(outbound_messages.is_empty());
-        assert_eq!(operation_results.len(), 1);
+        assert!(outbound_message.is_none());
+        assert!(operation_result.is_some());
         assert_eq!(
             insufficient_coordinator.first().unwrap().state,
             State::DkgPrivateGather,
         );
         assert!(
             matches!(
-                operation_results[0],
+                operation_result.unwrap(),
                 OperationResult::DkgError(DkgError::DkgPrivateTimeout(_))
             ),
             "Expected OperationResult::DkgError(DkgError::DkgPrivateTimeout)"
@@ -2658,7 +2665,7 @@ pub mod test {
     }
 
     #[test]
-    fn minimum_missing_public_keys_sign_v2() {
+    fn missing_public_keys_sign_v2() {
         missing_public_keys_sign::<v2::Aggregator, v2::Signer>();
     }
 
@@ -2667,7 +2674,7 @@ pub mod test {
         let keys_per_signer = 2;
 
         let (mut coordinators, mut signers) =
-            minimum_signers_dkg::<Aggregator, Signer>(num_signers, keys_per_signer);
+            all_signers_dkg::<Aggregator, Signer>(num_signers, keys_per_signer);
 
         // Let us also remove that signers public key from the config including all of its key ids
         let mut removed_signer = signers.pop().expect("Failed to pop signer");
@@ -2852,20 +2859,21 @@ pub mod test {
         // Sleep long enough to hit the timeout
         thread::sleep(Duration::from_millis(256));
 
-        let (outbound_messages, operation_results) = insufficient_coordinators
+        let (outbound_message, operation_result) = insufficient_coordinators
             .first_mut()
             .unwrap()
-            .process_inbound_messages(&[])
+            .process_timeout()
             .unwrap();
 
-        assert!(outbound_messages.is_empty());
-        assert_eq!(operation_results.len(), 1);
+        assert!(outbound_message.is_none());
+        assert!(operation_result.is_some());
         for coordinator in &insufficient_coordinators {
             assert_eq!(coordinator.state, State::NonceGather(signature_type));
         }
+
         assert!(
             matches!(
-                operation_results[0],
+                operation_result.unwrap(),
                 OperationResult::SignError(SignError::NonceTimeout(..))
             ),
             "Expected OperationResult::SignError(SignError::NonceTimeout)"
@@ -2922,14 +2930,14 @@ pub mod test {
         // Sleep long enough to hit the timeout
         thread::sleep(Duration::from_millis(256));
 
-        let (outbound_messages, operation_results) = insufficient_coordinators
+        let (outbound_message, operation_result) = insufficient_coordinators
             .first_mut()
             .unwrap()
-            .process_inbound_messages(&[])
+            .process_timeout()
             .unwrap();
 
-        assert_eq!(outbound_messages.len(), 1);
-        assert!(operation_results.is_empty());
+        assert!(outbound_message.is_some());
+        assert!(operation_result.is_none());
         assert_eq!(
             insufficient_coordinators.first().unwrap().state,
             State::NonceGather(signature_type)
@@ -2942,7 +2950,7 @@ pub mod test {
         let (outbound_messages, operation_results) = feedback_messages(
             &mut insufficient_coordinators,
             &mut insufficient_signers,
-            &outbound_messages,
+            &[outbound_message.unwrap()],
         );
         assert_eq!(outbound_messages.len(), 1);
         assert!(operation_results.is_empty());
@@ -2973,21 +2981,21 @@ pub mod test {
         // Sleep long enough to hit the timeout
         thread::sleep(Duration::from_millis(256));
 
-        let (outbound_messages, operation_results) = insufficient_coordinators
+        let (outbound_message, operation_result) = insufficient_coordinators
             .first_mut()
             .unwrap()
-            .process_inbound_messages(&[])
+            .process_timeout()
             .unwrap();
 
-        assert!(outbound_messages.is_empty());
-        assert_eq!(operation_results.len(), 1);
+        assert!(outbound_message.is_none());
+        assert!(operation_result.is_some());
         assert_eq!(
             insufficient_coordinators.first_mut().unwrap().state,
             State::SigShareGather(signature_type)
         );
         assert!(
             matches!(
-                operation_results[0],
+                operation_result.unwrap(),
                 OperationResult::SignError(SignError::InsufficientSigners(_))
             ),
             "Expected OperationResult::SignError(SignError::InsufficientSigners)"
@@ -3108,31 +3116,31 @@ pub mod test {
             coordinator.current_sign_id = id;
             // Attempt to start an old DKG round
             let (packets, results) = coordinator
-                .process_inbound_messages(&[Packet {
+                .process(&Packet {
                     sig: vec![],
                     msg: Message::DkgBegin(DkgBegin { dkg_id: old_id }),
-                }])
+                })
                 .unwrap();
-            assert!(packets.is_empty());
-            assert!(results.is_empty());
+            assert!(packets.is_none());
+            assert!(results.is_none());
             assert_eq!(coordinator.state, State::Idle);
             assert_eq!(coordinator.current_dkg_id, id);
 
             // Attempt to start the same DKG round
             let (packets, results) = coordinator
-                .process_inbound_messages(&[Packet {
+                .process(&Packet {
                     sig: vec![],
                     msg: Message::DkgBegin(DkgBegin { dkg_id: id }),
-                }])
+                })
                 .unwrap();
-            assert!(packets.is_empty());
-            assert!(results.is_empty());
+            assert!(packets.is_none());
+            assert!(results.is_none());
             assert_eq!(coordinator.state, State::Idle);
             assert_eq!(coordinator.current_dkg_id, id);
 
             // Attempt to start an old Sign round
             let (packets, results) = coordinator
-                .process_inbound_messages(&[Packet {
+                .process(&Packet {
                     sig: vec![],
                     msg: Message::NonceRequest(NonceRequest {
                         dkg_id: id,
@@ -3141,16 +3149,16 @@ pub mod test {
                         sign_iter_id: id,
                         signature_type: SignatureType::Frost,
                     }),
-                }])
+                })
                 .unwrap();
-            assert!(packets.is_empty());
-            assert!(results.is_empty());
+            assert!(packets.is_none());
+            assert!(results.is_none());
             assert_eq!(coordinator.state, State::Idle);
             assert_eq!(coordinator.current_sign_id, id);
 
             // Attempt to start the same Sign round
             let (packets, results) = coordinator
-                .process_inbound_messages(&[Packet {
+                .process(&Packet {
                     sig: vec![],
                     msg: Message::NonceRequest(NonceRequest {
                         dkg_id: id,
@@ -3159,10 +3167,10 @@ pub mod test {
                         sign_iter_id: id,
                         signature_type: SignatureType::Frost,
                     }),
-                }])
+                })
                 .unwrap();
-            assert!(packets.is_empty());
-            assert!(results.is_empty());
+            assert!(packets.is_none());
+            assert!(results.is_none());
             assert_eq!(coordinator.state, State::Idle);
             assert_eq!(coordinator.current_sign_id, id);
         }

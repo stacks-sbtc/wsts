@@ -895,23 +895,12 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
         Ok(())
     }
 
-    /// Process inbound messages
-    fn process_inbound_messages(
+    /// Process the message inside the passed packet
+    fn process(
         &mut self,
-        packets: &[Packet],
-    ) -> Result<(Vec<Packet>, Vec<OperationResult>), Error> {
-        let mut outbound_packets = vec![];
-        let mut operation_results = vec![];
-        for packet in packets {
-            let (outbound_packet, operation_result) = self.process_message(packet)?;
-            if let Some(outbound_packet) = outbound_packet {
-                outbound_packets.push(outbound_packet);
-            }
-            if let Some(operation_result) = operation_result {
-                operation_results.push(operation_result);
-            }
-        }
-        Ok((outbound_packets, operation_results))
+        packet: &Packet,
+    ) -> Result<(Option<Packet>, Option<OperationResult>), Error> {
+        self.process_message(packet)
     }
 
     /// Retrieve the aggregate public key
@@ -1451,32 +1440,32 @@ pub mod test {
         coordinator.current_dkg_id = id;
         coordinator.current_sign_id = id;
         // Attempt to start an old DKG round
-        let (packets, results) = coordinator
-            .process_inbound_messages(&[Packet {
+        let (packet, result) = coordinator
+            .process(&Packet {
                 sig: vec![],
                 msg: Message::DkgBegin(DkgBegin { dkg_id: old_id }),
-            }])
+            })
             .unwrap();
-        assert!(packets.is_empty());
-        assert!(results.is_empty());
+        assert!(packet.is_none());
+        assert!(result.is_none());
         assert_eq!(coordinator.state, State::Idle);
         assert_eq!(coordinator.current_dkg_id, id);
 
         // Attempt to start the same DKG round
-        let (packets, results) = coordinator
-            .process_inbound_messages(&[Packet {
+        let (packet, result) = coordinator
+            .process(&Packet {
                 sig: vec![],
                 msg: Message::DkgBegin(DkgBegin { dkg_id: id }),
-            }])
+            })
             .unwrap();
-        assert!(packets.is_empty());
-        assert!(results.is_empty());
+        assert!(packet.is_none());
+        assert!(result.is_none());
         assert_eq!(coordinator.state, State::Idle);
         assert_eq!(coordinator.current_dkg_id, id);
 
         // Attempt to start an old Sign round
-        let (packets, results) = coordinator
-            .process_inbound_messages(&[Packet {
+        let (packet, result) = coordinator
+            .process(&Packet {
                 sig: vec![],
                 msg: Message::NonceRequest(NonceRequest {
                     dkg_id: id,
@@ -1485,16 +1474,16 @@ pub mod test {
                     sign_iter_id: id,
                     signature_type: SignatureType::Frost,
                 }),
-            }])
+            })
             .unwrap();
-        assert!(packets.is_empty());
-        assert!(results.is_empty());
+        assert!(packet.is_none());
+        assert!(result.is_none());
         assert_eq!(coordinator.state, State::Idle);
         assert_eq!(coordinator.current_sign_id, id);
 
         // Attempt to start the same Sign round
-        let (packets, results) = coordinator
-            .process_inbound_messages(&[Packet {
+        let (packet, result) = coordinator
+            .process(&Packet {
                 sig: vec![],
                 msg: Message::NonceRequest(NonceRequest {
                     dkg_id: id,
@@ -1503,10 +1492,10 @@ pub mod test {
                     sign_iter_id: id,
                     signature_type: SignatureType::Frost,
                 }),
-            }])
+            })
             .unwrap();
-        assert!(packets.is_empty());
-        assert!(results.is_empty());
+        assert!(packet.is_none());
+        assert!(result.is_none());
         assert_eq!(coordinator.state, State::Idle);
         assert_eq!(coordinator.current_sign_id, id);
     }
