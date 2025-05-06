@@ -1334,21 +1334,14 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
     /// Check timeout then process a message if passed one
     fn process(
         &mut self,
-        packet: Option<Packet>,
+        packet: &Packet,
     ) -> Result<(Option<Packet>, Option<OperationResult>), Error> {
         let (outbound_packet, operation_result) = self.process_timeout()?;
         if outbound_packet.is_some() || operation_result.is_some() {
             return Ok((outbound_packet, operation_result));
         }
 
-        if let Some(packet) = packet {
-            let (outbound_packet, operation_result) = self.process_message(&packet)?;
-            if outbound_packet.is_some() || operation_result.is_some() {
-                return Ok((outbound_packet, operation_result));
-            }
-        }
-
-        Ok((None, None))
+        self.process_message(packet)
     }
 
     /// Start a signing round
@@ -1974,7 +1967,7 @@ pub mod test {
         let (outbound_messages, operation_results) = minimum_coordinators
             .first_mut()
             .unwrap()
-            .process(None)
+            .process_timeout()
             .unwrap();
 
         assert!(outbound_messages.is_some());
@@ -2057,7 +2050,7 @@ pub mod test {
         let (outbound_messages, operation_results) = minimum_coordinators
             .first_mut()
             .unwrap()
-            .process(None)
+            .process_timeout()
             .unwrap();
 
         assert!(outbound_messages.is_some());
@@ -2108,7 +2101,7 @@ pub mod test {
         let (outbound_message, operation_result) = minimum_coordinators
             .first_mut()
             .unwrap()
-            .process(None)
+            .process_timeout()
             .unwrap();
 
         assert!(outbound_message.is_some());
@@ -2218,7 +2211,7 @@ pub mod test {
         let (outbound_message, operation_result) = insufficient_coordinators
             .first_mut()
             .unwrap()
-            .process(None)
+            .process_timeout()
             .unwrap();
 
         assert!(outbound_message.is_none());
@@ -2285,7 +2278,7 @@ pub mod test {
         let (outbound_message, operation_result) = insufficient_coordinator
             .first_mut()
             .unwrap()
-            .process(None)
+            .process_timeout()
             .unwrap();
 
         assert!(outbound_message.is_none());
@@ -2867,7 +2860,7 @@ pub mod test {
         let (outbound_message, operation_result) = insufficient_coordinators
             .first_mut()
             .unwrap()
-            .process(None)
+            .process_timeout()
             .unwrap();
 
         assert!(outbound_message.is_none());
@@ -2938,7 +2931,7 @@ pub mod test {
         let (outbound_message, operation_result) = insufficient_coordinators
             .first_mut()
             .unwrap()
-            .process(None)
+            .process_timeout()
             .unwrap();
 
         assert!(outbound_message.is_some());
@@ -2989,7 +2982,7 @@ pub mod test {
         let (outbound_message, operation_result) = insufficient_coordinators
             .first_mut()
             .unwrap()
-            .process(None)
+            .process_timeout()
             .unwrap();
 
         assert!(outbound_message.is_none());
@@ -3121,10 +3114,10 @@ pub mod test {
             coordinator.current_sign_id = id;
             // Attempt to start an old DKG round
             let (packets, results) = coordinator
-                .process(Some(Packet {
+                .process(&Packet {
                     sig: vec![],
                     msg: Message::DkgBegin(DkgBegin { dkg_id: old_id }),
-                }))
+                })
                 .unwrap();
             assert!(packets.is_none());
             assert!(results.is_none());
@@ -3133,10 +3126,10 @@ pub mod test {
 
             // Attempt to start the same DKG round
             let (packets, results) = coordinator
-                .process(Some(Packet {
+                .process(&Packet {
                     sig: vec![],
                     msg: Message::DkgBegin(DkgBegin { dkg_id: id }),
-                }))
+                })
                 .unwrap();
             assert!(packets.is_none());
             assert!(results.is_none());
@@ -3145,7 +3138,7 @@ pub mod test {
 
             // Attempt to start an old Sign round
             let (packets, results) = coordinator
-                .process(Some(Packet {
+                .process(&Packet {
                     sig: vec![],
                     msg: Message::NonceRequest(NonceRequest {
                         dkg_id: id,
@@ -3154,7 +3147,7 @@ pub mod test {
                         sign_iter_id: id,
                         signature_type: SignatureType::Frost,
                     }),
-                }))
+                })
                 .unwrap();
             assert!(packets.is_none());
             assert!(results.is_none());
@@ -3163,7 +3156,7 @@ pub mod test {
 
             // Attempt to start the same Sign round
             let (packets, results) = coordinator
-                .process(Some(Packet {
+                .process(&Packet {
                     sig: vec![],
                     msg: Message::NonceRequest(NonceRequest {
                         dkg_id: id,
@@ -3172,7 +3165,7 @@ pub mod test {
                         sign_iter_id: id,
                         signature_type: SignatureType::Frost,
                     }),
-                }))
+                })
                 .unwrap();
             assert!(packets.is_none());
             assert!(results.is_none());

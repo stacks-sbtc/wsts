@@ -289,7 +289,7 @@ pub trait Coordinator: Clone + Debug + PartialEq + StateMachine<State, Error> {
     /// Check for timeout and maybe process a single message
     fn process(
         &mut self,
-        packets: Option<Packet>,
+        packet: &Packet,
     ) -> Result<(Option<Packet>, Option<OperationResult>), Error>;
 
     /// Retrieve the aggregate public key
@@ -637,15 +637,14 @@ pub mod test {
         for coordinator in coordinators.iter_mut() {
             // Process all coordinator messages, but don't bother with propogating these results
             for message in messages {
-                let _ = coordinator.process(Some(message.clone())).unwrap();
+                let _ = coordinator.process(&message).unwrap();
             }
         }
         let mut results = vec![];
         let mut messages = vec![];
         for (i, coordinator) in coordinators.iter_mut().enumerate() {
             for inbound_message in &inbound_messages {
-                let (outbound_message, outbound_result) =
-                    coordinator.process(Some(inbound_message.clone()))?;
+                let (outbound_message, outbound_result) = coordinator.process(inbound_message)?;
                 // Only propogate a single coordinator's messages and results
                 if i == 0 {
                     messages.extend(outbound_message);

@@ -898,16 +898,9 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
     /// Process the message inside the passed packet
     fn process(
         &mut self,
-        packet: Option<Packet>,
+        packet: &Packet,
     ) -> Result<(Option<Packet>, Option<OperationResult>), Error> {
-        if let Some(packet) = packet {
-            let (outbound_packet, operation_result) = self.process_message(&packet)?;
-            if outbound_packet.is_some() || operation_result.is_some() {
-                return Ok((outbound_packet, operation_result));
-            }
-        }
-
-        Ok((None, None))
+        self.process_message(packet)
     }
 
     /// Retrieve the aggregate public key
@@ -1448,10 +1441,10 @@ pub mod test {
         coordinator.current_sign_id = id;
         // Attempt to start an old DKG round
         let (packet, result) = coordinator
-            .process(Some(Packet {
+            .process(&Packet {
                 sig: vec![],
                 msg: Message::DkgBegin(DkgBegin { dkg_id: old_id }),
-            }))
+            })
             .unwrap();
         assert!(packet.is_none());
         assert!(result.is_none());
@@ -1460,10 +1453,10 @@ pub mod test {
 
         // Attempt to start the same DKG round
         let (packet, result) = coordinator
-            .process(Some(Packet {
+            .process(&Packet {
                 sig: vec![],
                 msg: Message::DkgBegin(DkgBegin { dkg_id: id }),
-            }))
+            })
             .unwrap();
         assert!(packet.is_none());
         assert!(result.is_none());
@@ -1472,7 +1465,7 @@ pub mod test {
 
         // Attempt to start an old Sign round
         let (packet, result) = coordinator
-            .process(Some(Packet {
+            .process(&Packet {
                 sig: vec![],
                 msg: Message::NonceRequest(NonceRequest {
                     dkg_id: id,
@@ -1481,7 +1474,7 @@ pub mod test {
                     sign_iter_id: id,
                     signature_type: SignatureType::Frost,
                 }),
-            }))
+            })
             .unwrap();
         assert!(packet.is_none());
         assert!(result.is_none());
@@ -1490,7 +1483,7 @@ pub mod test {
 
         // Attempt to start the same Sign round
         let (packet, result) = coordinator
-            .process(Some(Packet {
+            .process(&Packet {
                 sig: vec![],
                 msg: Message::NonceRequest(NonceRequest {
                     dkg_id: id,
@@ -1499,7 +1492,7 @@ pub mod test {
                     sign_iter_id: id,
                     signature_type: SignatureType::Frost,
                 }),
-            }))
+            })
             .unwrap();
         assert!(packet.is_none());
         assert!(result.is_none());
