@@ -34,8 +34,8 @@ pub struct PolyCommitment {
 
 impl PolyCommitment {
     /// Verify the wrapped schnorr ID
-    pub fn verify(&self) -> bool {
-        self.id.verify(&self.poly[0])
+    pub fn verify(&self, ctx: &[u8]) -> bool {
+        self.id.verify(&self.poly[0], ctx)
     }
 }
 
@@ -316,8 +316,8 @@ pub fn validate_key_id(key_id: u32, num_keys: u32) -> bool {
 }
 
 /// Check that the PolyCommitment is properly signed and has the correct degree polynomial
-pub fn check_public_shares(poly_comm: &PolyCommitment, threshold: usize) -> bool {
-    poly_comm.verify() && poly_comm.poly.len() == threshold
+pub fn check_public_shares(poly_comm: &PolyCommitment, threshold: usize, ctx: &[u8]) -> bool {
+    poly_comm.verify(ctx) && poly_comm.poly.len() == threshold
 }
 
 /// An implementation of p256k1's MultiMult trait that allows fast checking of DKG private shares
