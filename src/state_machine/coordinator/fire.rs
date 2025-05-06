@@ -2108,12 +2108,13 @@ pub mod test {
 
         assert!(outbound_message.is_some());
         assert!(operation_result.is_none());
-        match outbound_message.clone().unwrap().msg {
-            Message::DkgEndBegin(_) => {}
-            _ => {
-                panic!("Expected DkgEndBegin message");
-            }
-        }
+        assert!(
+            matches!(
+                outbound_message.clone().unwrap().msg,
+                Message::DkgEndBegin(_)
+            ),
+            "Expected DkgEndBegin message"
+        );
         assert_eq!(
             minimum_coordinators.first().unwrap().state,
             State::DkgEndGather,
@@ -2222,14 +2223,13 @@ pub mod test {
             insufficient_coordinators.first().unwrap().state,
             State::DkgPublicGather,
         );
-
-        match operation_result.unwrap() {
-            OperationResult::DkgError(dkg_error) => match dkg_error {
-                DkgError::DkgPublicTimeout(_) => {}
-                _ => panic!("Expected DkgError::DkgPublicTimeout"),
-            },
-            _ => panic!("Expected OperationResult::DkgError"),
-        }
+        assert!(
+            matches!(
+                operation_result.unwrap(),
+                OperationResult::DkgError(DkgError::DkgPublicTimeout(_))
+            ),
+            "Expected OperationResult::DkgError(DkgError::DkgPublicTimeout"
+        );
 
         // Run DKG again with fresh coordinator and signers, this time allow gathering DkgPublicShares but timeout getting DkgEnd
         let mut insufficient_coordinator = coordinators.clone();
@@ -2871,13 +2871,13 @@ pub mod test {
             assert_eq!(coordinator.state, State::NonceGather(signature_type));
         }
 
-        match &operation_result.unwrap() {
-            OperationResult::SignError(sign_error) => match sign_error {
-                SignError::NonceTimeout(_, _) => {}
-                _ => panic!("Expected SignError::NonceTimeout"),
-            },
-            _ => panic!("Expected OperationResult::SignError"),
-        }
+        assert!(
+            matches!(
+                operation_result.unwrap(),
+                OperationResult::SignError(SignError::NonceTimeout(..))
+            ),
+            "Expected OperationResult::SignError(Signrror::NonceTimeout"
+        );
 
         // Start a new signing round with a sufficient number of signers for nonces but not sig shares
         let mut insufficient_coordinators = coordinators.clone();
