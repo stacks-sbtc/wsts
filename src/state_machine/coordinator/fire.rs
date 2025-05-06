@@ -1331,7 +1331,9 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
         self.start_public_shares()
     }
 
-    /// Check timeout then process a message if passed one
+    /// Process the timeouts, and if none of them fire then process the passed packet
+    /// If a timeout does fire, then the coordinator state has changed; this means the
+    /// packet is now stale and must be dropped
     fn process(
         &mut self,
         packet: &Packet,

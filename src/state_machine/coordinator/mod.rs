@@ -286,7 +286,9 @@ pub trait Coordinator: Clone + Debug + PartialEq + StateMachine<State, Error> {
         party_polynomials: Vec<(u32, PolyCommitment)>,
     ) -> Result<(), Error>;
 
-    /// Check for timeout and maybe process a single message
+    /// Process any timeouts, and if none of them fire then process the passed packet
+    /// If a timeout does fire, then the coordinator state has changed; this means the
+    /// packet is now stale and must be dropped
     fn process(
         &mut self,
         packet: &Packet,
