@@ -252,11 +252,11 @@ impl Party {
         };
         let (_, R) = compute::intermediate(msg, party_ids, nonces);
         let c = compute::challenge(&tweaked_public_key, &R, msg);
-        let mut r = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
+        let commitment_list: Vec<(Scalar, PublicNonce)> = party_ids.into_iter().zip(nonces).map(|(id, nonce)| (Scalar::from(id), *nonce)).collect();
+        let mut r = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), self.group_key, &commitment_list, msg);
         if tweak.is_some() && !R.has_even_y() {
             r = -r;
         }
-
         let mut cx = Scalar::zero();
         for key_id in self.key_ids.iter() {
             cx += c * &self.private_keys[key_id] * compute::lambda(*key_id, key_ids);

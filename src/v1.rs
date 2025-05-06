@@ -215,8 +215,9 @@ impl Party {
 
     /// Sign `msg` with this party's share of the group private key, using the set of `signers` and corresponding `nonces`
     pub fn sign(&self, msg: &[u8], signers: &[u32], nonces: &[PublicNonce]) -> SignatureShare {
-        let (_, aggregate_nonce) = compute::intermediate(msg, signers, nonces);
-        let mut z = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
+        let (_, aggregate_nonce) = compute::intermediate(msg, self.group_key, signers, nonces);
+        let commitment_list: Vec<(Scalar, PublicNonce)> = signers.into_iter().zip(nonces).map(|(id, nonce)| (Scalar::from(*id), *nonce)).collect();
+        let mut z = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), self.group_key, &commitment_list, msg);
         z += compute::challenge(&self.group_key, &aggregate_nonce, msg)
             * &self.private_key
             * compute::lambda(self.id, signers);
@@ -251,7 +252,8 @@ impl Party {
         aggregate_nonce: &Point,
         tweak: Option<Scalar>,
     ) -> SignatureShare {
-        let mut r = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
+        let commitment_list: Vec<(Scalar, PublicNonce)> = signers.into_iter().zip(nonces).map(|(id, nonce)| (Scalar::from(*id), *nonce)).collect();
+        let mut r = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), self.group_key, &commitment_list, msg);
         if tweak.is_some() && !aggregate_nonce.has_even_y() {
             r = -r;
         }
@@ -323,7 +325,6 @@ impl Aggregator {
         }
 
         let signers: Vec<u32> = sig_shares.iter().map(|ss| ss.id).collect();
-        let (_Rs, R) = compute::intermediate(msg, &signers, nonces);
         let mut z = Scalar::zero();
         let mut cx_sign = Scalar::one();
         let aggregate_public_key = self.poly[0];
@@ -337,6 +338,7 @@ impl Aggregator {
             }
             _ => aggregate_public_key,
         };
+        let (_Rs, R) = compute::intermediate(msg, tweaked_public_key, &signers, nonces);
         let c = compute::challenge(&tweaked_public_key, &R, msg);
 
         for sig_share in sig_shares {
@@ -370,7 +372,6 @@ impl Aggregator {
         }
 
         let signers: Vec<u32> = sig_shares.iter().map(|ss| ss.id).collect();
-        let (Rs, R) = compute::intermediate(msg, &signers, nonces);
         let mut bad_party_keys = Vec::new();
         let mut bad_party_sigs = Vec::new();
         let aggregate_public_key = self.poly[0];
@@ -380,6 +381,7 @@ impl Aggregator {
             }
             _ => aggregate_public_key,
         };
+        let (Rs, R) = compute::intermediate(msg, tweaked_public_key, &signers, nonces);
         let c = compute::challenge(&tweaked_public_key, &R, msg);
         let mut r_sign = Scalar::one();
         let mut cx_sign = Scalar::one();
