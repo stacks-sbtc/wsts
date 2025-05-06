@@ -895,7 +895,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             if nonce_info.nonce_recv_key_ids.len() >= self.config.threshold as usize {
                 // We have a winning message!
                 self.message.clone_from(&nonce_response.message);
-                let aggregate_nonce = self.compute_aggregate_nonce();
+                let aggregate_nonce = self.compute_aggregate_nonce()?;
                 info!("Aggregate nonce: {aggregate_nonce}");
 
                 self.move_to(State::SigShareRequest(signature_type))?;
@@ -1096,7 +1096,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
     }
 
     #[allow(non_snake_case)]
-    fn compute_aggregate_nonce(&self) -> Point {
+    fn compute_aggregate_nonce(&self) -> Result<Point, Error> {
         // XXX this needs to be key_ids for v1 and signer_ids for v2
         let public_nonces = self
             .message_nonces
@@ -1114,9 +1114,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             .cloned()
             .flat_map(|pn| pn.nonces)
             .collect::<Vec<PublicNonce>>();
-        let (_, R) = compute::intermediate(&self.message, &party_ids, &nonces);
 
-        R
+        let Some(group_key) = self.aggregate_public_key else {
+            return Err(Error::MissingAggregatePublicKey);
+        };
+        let (_, aggregate_nonce) =
+            compute::intermediate(&self.message, group_key, &party_ids, &nonces);
+
+        Ok(aggregate_nonce)
     }
 
     fn compute_dkg_public_size(&self) -> u32 {
@@ -1594,6 +1599,7 @@ pub mod test {
         let signature_type = SignatureType::Frost;
         let message = vec![0u8];
         coordinator.state = State::NonceGather(signature_type);
+        coordinator.aggregate_public_key = Some(Point::from(Scalar::random(&mut rng)));
 
         let nonce_response = NonceResponse {
             dkg_id: 0,

@@ -534,7 +534,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             );
         }
         if self.ids_to_await.is_empty() {
-            let aggregate_nonce = self.compute_aggregate_nonce();
+            let aggregate_nonce = self.compute_aggregate_nonce()?;
             info!(
                 %aggregate_nonce,
                 "Aggregate nonce"
@@ -715,7 +715,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
     }
 
     #[allow(non_snake_case)]
-    fn compute_aggregate_nonce(&self) -> Point {
+    fn compute_aggregate_nonce(&self) -> Result<Point, Error> {
         // XXX this needs to be key_ids for v1 and signer_ids for v2
         let party_ids = self
             .public_nonces
@@ -727,9 +727,12 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             .values()
             .flat_map(|pn| pn.nonces.clone())
             .collect::<Vec<PublicNonce>>();
-        let (_, R) = compute::intermediate(&self.message, &party_ids, &nonces);
+        let Some(group_key) = self.aggregate_public_key else {
+            return Err(Error::MissingAggregatePublicKey);
+        };
+        let (_, R) = compute::intermediate(&self.message, group_key, &party_ids, &nonces);
 
-        R
+        Ok(R)
     }
 }
 
@@ -1212,6 +1215,7 @@ pub mod test {
         let signature_type = SignatureType::Frost;
         let message = vec![0u8];
         coordinator.state = State::NonceGather(signature_type);
+        coordinator.aggregate_public_key = Some(Point::from(Scalar::random(&mut rng)));
 
         let nonce_response = NonceResponse {
             dkg_id: 0,
