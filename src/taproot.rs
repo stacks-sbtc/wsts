@@ -72,6 +72,7 @@ impl From<[u8; 64]> for SchnorrProof {
 
 /// Helper functions for tests
 pub mod test_helpers {
+    use super::*;
     use crate::{
         common::{PolyCommitment, PublicNonce, SignatureShare},
         errors::DkgError,
@@ -119,9 +120,13 @@ pub mod test_helpers {
         signers: &mut [Signer],
         rng: &mut RNG,
     ) -> (Vec<u32>, Vec<u32>, Vec<PublicNonce>) {
+        let secret_key = Scalar::random(rng);
         let signer_ids: Vec<u32> = signers.iter().map(|s| s.get_id()).collect();
         let key_ids: Vec<u32> = signers.iter().flat_map(|s| s.get_key_ids()).collect();
-        let nonces: Vec<PublicNonce> = signers.iter_mut().flat_map(|s| s.gen_nonces(rng)).collect();
+        let nonces: Vec<PublicNonce> = signers
+            .iter_mut()
+            .flat_map(|s| s.gen_nonces(&secret_key, rng))
+            .collect();
 
         (signer_ids, key_ids, nonces)
     }

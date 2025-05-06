@@ -74,8 +74,12 @@ impl Party {
     }
 
     /// Generate and store a private nonce for a signing round
-    pub fn gen_nonce<RNG: RngCore + CryptoRng>(&mut self, rng: &mut RNG) -> PublicNonce {
-        self.nonce = Nonce::random(rng);
+    pub fn gen_nonce<RNG: RngCore + CryptoRng>(
+        &mut self,
+        secret_key: &Scalar,
+        rng: &mut RNG,
+    ) -> PublicNonce {
+        self.nonce = Nonce::random(secret_key, rng);
         PublicNonce::from(&self.nonce)
     }
 
@@ -613,8 +617,12 @@ impl traits::Signer for Party {
         }
     }
 
-    fn gen_nonces<RNG: RngCore + CryptoRng>(&mut self, rng: &mut RNG) -> Vec<PublicNonce> {
-        vec![self.gen_nonce(rng)]
+    fn gen_nonces<RNG: RngCore + CryptoRng>(
+        &mut self,
+        secret_key: &Scalar,
+        rng: &mut RNG,
+    ) -> Vec<PublicNonce> {
+        vec![self.gen_nonce(secret_key, rng)]
     }
 
     fn compute_intermediate(
@@ -669,6 +677,7 @@ impl traits::Signer for Party {
 
 /// Helper functions for tests
 pub mod test_helpers {
+    use super::Scalar;
     use crate::common::{PolyCommitment, PublicNonce};
     use crate::errors::DkgError;
     use crate::traits::Signer;
@@ -731,9 +740,13 @@ pub mod test_helpers {
         signers: &mut [v2::Party],
         rng: &mut RNG,
     ) -> (Vec<PublicNonce>, Vec<SignatureShare>, Vec<u32>) {
+        let secret_key = Scalar::random(rng);
         let party_ids: Vec<u32> = signers.iter().map(|s| s.party_id).collect();
         let key_ids: Vec<u32> = signers.iter().flat_map(|s| s.key_ids.clone()).collect();
-        let nonces: Vec<PublicNonce> = signers.iter_mut().map(|s| s.gen_nonce(rng)).collect();
+        let nonces: Vec<PublicNonce> = signers
+            .iter_mut()
+            .map(|s| s.gen_nonce(&secret_key, rng))
+            .collect();
         let shares = signers
             .iter()
             .map(|s| s.sign(msg, &party_ids, &key_ids, &nonces))
