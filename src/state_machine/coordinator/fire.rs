@@ -717,7 +717,19 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 }
                             }
                         }
-                        DkgFailure::MissingPublicShares(_) => {
+                        DkgFailure::MissingPublicShares(missing_signer_ids) => {
+                            for id in missing_signer_ids {
+                                if let Some(shares) = self.dkg_public_shares.get(id) {
+                                    if shares.comms.is_empty() {
+                                        self.malicious_dkg_signer_ids.insert(*id);
+                                    } else {
+                                        // signer_id reported missing shares but there were present
+                                        self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    }
+                                } else {
+                                    self.malicious_dkg_signer_ids.insert(*id);
+                                }
+                            }
                             dkg_failures.insert(*signer_id, dkg_failure.clone());
                         }
                         DkgFailure::MissingPrivateShares(_) => {
