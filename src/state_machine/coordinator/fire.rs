@@ -1593,6 +1593,7 @@ pub mod test {
         let signature_type = SignatureType::Frost;
         let message = vec![0u8];
         coordinator.state = State::NonceGather(signature_type);
+        coordinator.aggregate_public_key = Some(Point::from(Scalar::random(&mut rng)));
 
         let nonce_response = NonceResponse {
             dkg_id: 0,

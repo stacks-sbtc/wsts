@@ -348,7 +348,7 @@ impl Aggregator {
             }
             _ => aggregate_public_key,
         };
-        let (_Rs, R) = compute::intermediate(msg, tweaked_public_key, &signers, nonces);
+        let (_Rs, R) = compute::intermediate(msg, aggregate_public_key, &signers, nonces);
         let c = compute::challenge(&tweaked_public_key, &R, msg);
 
         for sig_share in sig_shares {
@@ -391,7 +391,7 @@ impl Aggregator {
             }
             _ => aggregate_public_key,
         };
-        let (Rs, R) = compute::intermediate(msg, tweaked_public_key, &signers, nonces);
+        let (Rs, R) = compute::intermediate(msg, aggregate_public_key, &signers, nonces);
         let c = compute::challenge(&tweaked_public_key, &R, msg);
         let mut r_sign = Scalar::one();
         let mut cx_sign = Scalar::one();
