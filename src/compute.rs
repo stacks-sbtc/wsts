@@ -27,6 +27,7 @@ pub fn group_commitment(commitment_list: &[(Scalar, PublicNonce)]) -> Scalar {
     hash_to_scalar(&mut hasher)
 }
 
+#[allow(non_snake_case)]
 /// Compute the group commitment
 pub fn group_commitment_compressed(commitment_list: &[(Scalar, Compressed, Compressed)]) -> Scalar {
     let mut hasher = Sha256::new();
@@ -113,11 +114,19 @@ pub fn lambda(i: u32, key_ids: &[u32]) -> Scalar {
 // Is this the best way to return these values?
 #[allow(non_snake_case)]
 /// Compute the intermediate values used in both the parties and the aggregator
-pub fn intermediate(msg: &[u8], group_key: Point, party_ids: &[u32], nonces: &[PublicNonce]) -> (Vec<Point>, Point) {
-    let commitment_list: Vec<(Scalar, PublicNonce)> = party_ids.into_iter().zip(nonces)
-        .map(|(i, nonce)| (Scalar::from(*i), *nonce))
+pub fn intermediate(
+    msg: &[u8],
+    group_key: Point,
+    party_ids: &[u32],
+    nonces: &[PublicNonce],
+) -> (Vec<Point>, Point) {
+    let commitment_list: Vec<(Scalar, PublicNonce)> = party_ids
+        .into_iter()
+        .zip(nonces)
+        .map(|(i, nonce)| (Scalar::from(*i), nonce.clone()))
         .collect();
-    let rhos: Vec<Scalar> = party_ids.into_iter()
+    let rhos: Vec<Scalar> = party_ids
+        .into_iter()
         .map(|i| binding(&id(*i), group_key, &commitment_list, msg))
         .collect();
     let R_vec: Vec<Point> = zip(nonces, rhos)
@@ -132,11 +141,13 @@ pub fn intermediate(msg: &[u8], group_key: Point, party_ids: &[u32], nonces: &[P
 /// Compute the aggregate nonce
 pub fn aggregate_nonce(
     msg: &[u8],
-    group_key: Point, 
+    group_key: Point,
     party_ids: &[u32],
     nonces: &[PublicNonce],
 ) -> Result<Point, PointError> {
-    let commitment_list: Vec<(Scalar, Compressed, Compressed)> = party_ids.into_iter().zip(nonces)
+    let commitment_list: Vec<(Scalar, Compressed, Compressed)> = party_ids
+        .into_iter()
+        .zip(nonces)
         .map(|(id, nonce)| (Scalar::from(*id), nonce.D.compress(), nonce.E.compress()))
         .collect();
     let scalars: Vec<Scalar> = party_ids
