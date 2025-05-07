@@ -7,10 +7,7 @@ use rand_core::{CryptoRng, RngCore};
 use tracing::warn;
 
 use crate::{
-    common::{
-        check_public_shares, CheckPrivateShares, Nonce, PolyCommitment, PublicNonce, Signature,
-        SignatureShare,
-    },
+    common::{check_public_shares, Nonce, PolyCommitment, PublicNonce, Signature, SignatureShare},
     compute,
     curve::{
         point::{Point, G},
@@ -180,25 +177,26 @@ impl Party {
             return Err(DkgError::MissingPrivateShares(missing_shares));
         }
 
-        // let's optimize for the case where all shares are good, and test them as a batch
-
-        // building a vector of scalars and points from public poly evaluations and expected values takes too much memory
-        // instead make an object which implements p256k1 MultiMult trait, using the existing powers of x and shares
-        let mut check_shares =
-            CheckPrivateShares::new(self.id(), &private_shares, public_shares.clone());
-
-        // if the batch verify fails then check them one by one and find the bad ones
-        if Point::multimult_trait(&mut check_shares)? != Point::zero() {
-            let mut bad_shares = Vec::new();
-            for (i, s) in private_shares.iter() {
-                if let Some(comm) = public_shares.get(i) {
-                    if s * G != compute::poly(&self.id(), &comm.poly)? {
-                        bad_shares.push(*i);
-                    }
-                } else {
-                    warn!("unable to check private share from {}: no corresponding public share, even though we checked for it above", i);
+        // batch verification requires that we multiply each term by a random scalar in order to
+        // prevent a bypass attack.  Doing this using p256k1's MultiMult trait is problematic,
+        // because it needs to have every term available so it can return references to them,
+        // so we wouldn't be able to save any memory since we'd have to multiple each polynomial
+        // coefficient by a different random scalar.
+        // we could implement a MultiMultCopy trait that allows us to do the multiplication inline,
+        // at the cost of many copies, or use large amounts of memory and do a standard multimult.
+        // Or we could just verify each set of public and private shares separately, using extra CPU
+        let mut bad_shares = Vec::new();
+        for (i, s) in private_shares.iter() {
+            if let Some(comm) = public_shares.get(i) {
+                if s * G != compute::poly(&self.id(), &comm.poly)? {
+                    bad_shares.push(*i);
                 }
+            } else {
+                warn!("unable to check private share from {}: no corresponding public share, even though we checked for it above", i);
             }
+        }
+
+        if !bad_shares.is_empty() {
             return Err(DkgError::BadPrivateShares(bad_shares));
         }
 
