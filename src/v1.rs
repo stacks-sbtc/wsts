@@ -217,7 +217,7 @@ impl Party {
     pub fn sign(&self, msg: &[u8], signers: &[u32], nonces: &[PublicNonce]) -> SignatureShare {
         let (_, aggregate_nonce) = compute::intermediate(msg, self.group_key, signers, nonces);
         let commitment_list: Vec<(Scalar, PublicNonce)> = signers
-            .into_iter()
+            .iter()
             .zip(nonces)
             .map(|(id, nonce)| (Scalar::from(*id), nonce.clone()))
             .collect();
@@ -258,7 +258,7 @@ impl Party {
         tweak: Option<Scalar>,
     ) -> SignatureShare {
         let commitment_list: Vec<(Scalar, PublicNonce)> = signers
-            .into_iter()
+            .iter()
             .zip(nonces)
             .map(|(id, nonce)| (Scalar::from(*id), nonce.clone()))
             .collect();

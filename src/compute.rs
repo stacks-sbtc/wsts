@@ -121,12 +121,12 @@ pub fn intermediate(
     nonces: &[PublicNonce],
 ) -> (Vec<Point>, Point) {
     let commitment_list: Vec<(Scalar, PublicNonce)> = party_ids
-        .into_iter()
+        .iter()
         .zip(nonces)
         .map(|(i, nonce)| (Scalar::from(*i), nonce.clone()))
         .collect();
     let rhos: Vec<Scalar> = party_ids
-        .into_iter()
+        .iter()
         .map(|i| binding(&id(*i), group_key, &commitment_list, msg))
         .collect();
     let R_vec: Vec<Point> = zip(nonces, rhos)
@@ -146,7 +146,7 @@ pub fn aggregate_nonce(
     nonces: &[PublicNonce],
 ) -> Result<Point, PointError> {
     let commitment_list: Vec<(Scalar, Compressed, Compressed)> = party_ids
-        .into_iter()
+        .iter()
         .zip(nonces)
         .map(|(id, nonce)| (Scalar::from(*id), nonce.D.compress(), nonce.E.compress()))
         .collect();

@@ -253,7 +253,7 @@ impl Party {
         let (_, R) = compute::intermediate(msg, self.group_key, party_ids, nonces);
         let c = compute::challenge(&tweaked_public_key, &R, msg);
         let commitment_list: Vec<(Scalar, PublicNonce)> = party_ids
-            .into_iter()
+            .iter()
             .zip(nonces)
             .map(|(id, nonce)| (Scalar::from(*id), nonce.clone()))
             .collect();
