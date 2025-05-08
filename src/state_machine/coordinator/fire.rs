@@ -737,28 +737,25 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 if let Some(shares) = self.dkg_private_shares.get(id) {
                                     if shares.shares.is_empty() {
                                         self.malicious_dkg_signer_ids.insert(*id);
-                                    } else {
-                                        if let Some(signer_key_ids) =
-                                            self.config.signer_key_ids.get(signer_id)
-                                        {
-                                            let mut missing_private_shares = false;
-                                            for dst_key_id in signer_key_ids {
-                                                for (_src_party_id, party_shares) in &shares.shares
-                                                {
-                                                    if party_shares.get(dst_key_id).is_none() {
-                                                        missing_private_shares = true;
-                                                    }
+                                    } else if let Some(signer_key_ids) =
+                                        self.config.signer_key_ids.get(signer_id)
+                                    {
+                                        let mut missing_private_shares = false;
+                                        for dst_key_id in signer_key_ids {
+                                            for (_src_party_id, party_shares) in &shares.shares {
+                                                if party_shares.get(dst_key_id).is_none() {
+                                                    missing_private_shares = true;
                                                 }
                                             }
-                                            if missing_private_shares {
-                                                self.malicious_dkg_signer_ids.insert(*id);
-                                            } else {
-                                                // signer_id reported missing shares but they were present
-                                                self.malicious_dkg_signer_ids.insert(*signer_id);
-                                            }
-                                        } else {
-                                            error!("Got MissingPrivateShares from {signer_id} but we don't have key_ids for them");
                                         }
+                                        if missing_private_shares {
+                                            self.malicious_dkg_signer_ids.insert(*id);
+                                        } else {
+                                            // signer_id reported missing shares but they were present
+                                            self.malicious_dkg_signer_ids.insert(*signer_id);
+                                        }
+                                    } else {
+                                        error!("Got MissingPrivateShares from {signer_id} but we don't have key_ids for them");
                                     }
                                 } else {
                                     self.malicious_dkg_signer_ids.insert(*id);
