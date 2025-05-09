@@ -1102,6 +1102,7 @@ pub mod test {
                     poly: vec![],
                 },
             )],
+            kex_public_key: Point::from(Scalar::random(&mut rng)),
         };
         let packet = Packet {
             msg: Message::DkgPublicShares(public_shares.clone()),
@@ -1121,6 +1122,7 @@ pub mod test {
                     poly: vec![],
                 },
             )],
+            kex_public_key: Point::from(Scalar::random(&mut rng)),
         };
         let dup_packet = Packet {
             msg: Message::DkgPublicShares(dup_public_shares.clone()),

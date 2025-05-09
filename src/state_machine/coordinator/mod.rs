@@ -1384,6 +1384,7 @@ pub mod test {
                             dkg_id: shares.dkg_id,
                             signer_id: shares.signer_id,
                             comms: vec![],
+                            kex_public_key: Point::new(),
                         };
                         Packet {
                             msg: Message::DkgPublicShares(public_shares),
