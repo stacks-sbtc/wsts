@@ -5,7 +5,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
 };
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     common::{
@@ -94,6 +94,9 @@ pub enum Error {
     #[error("integer conversion error")]
     /// An error during integer conversion operations
     TryFromInt(#[from] TryFromIntError),
+    #[error("missing kex public key for key_id {0}")]
+    /// Missing KEX public key for a key_id
+    MissingKexPublicKey(u32),
 }
 
 /// The saved state required to reconstruct a signer
@@ -145,6 +148,10 @@ pub struct SavedState {
     pub dkg_private_begin_msg: Option<DkgPrivateBegin>,
     /// the DKG end begin message received in this round
     pub dkg_end_begin_msg: Option<DkgEndBegin>,
+    /// Ephemeral private key for key exchange
+    kex_private_key: Scalar,
+    /// Ephemeral public keys for key exchange indexed by key_id
+    kex_public_keys: HashMap<u32, Point>,
 }
 
 impl fmt::Debug for SavedState {
@@ -220,6 +227,10 @@ pub struct Signer<SignerType: SignerTrait> {
     pub dkg_private_begin_msg: Option<DkgPrivateBegin>,
     /// the DKG end begin message received in this round
     pub dkg_end_begin_msg: Option<DkgEndBegin>,
+    /// Ephemeral private key for key exchange
+    kex_private_key: Scalar,
+    /// Ephemeral public keys for key exchange indexed by key_id
+    kex_public_keys: HashMap<u32, Point>,
 }
 
 impl<SignerType: SignerTrait> fmt::Debug for Signer<SignerType> {
@@ -315,6 +326,8 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             dkg_private_shares: Default::default(),
             dkg_private_begin_msg: Default::default(),
             dkg_end_begin_msg: Default::default(),
+            kex_private_key: Scalar::random(rng),
+            kex_public_keys: Default::default(),
         })
     }
 
@@ -342,6 +355,8 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             dkg_private_shares: state.dkg_private_shares.clone(),
             dkg_private_begin_msg: state.dkg_private_begin_msg.clone(),
             dkg_end_begin_msg: state.dkg_end_begin_msg.clone(),
+            kex_private_key: state.kex_private_key,
+            kex_public_keys: state.kex_public_keys.clone(),
         }
     }
 
@@ -369,6 +384,8 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             dkg_private_shares: self.dkg_private_shares.clone(),
             dkg_private_begin_msg: self.dkg_private_begin_msg.clone(),
             dkg_end_begin_msg: self.dkg_end_begin_msg.clone(),
+            kex_private_key: self.kex_private_key,
+            kex_public_keys: self.kex_public_keys.clone(),
         }
     }
 
@@ -385,6 +402,8 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         self.dkg_private_shares.clear();
         self.dkg_private_begin_msg = None;
         self.dkg_end_begin_msg = None;
+        self.kex_private_key = Scalar::random(rng);
+        self.kex_public_keys.clear();
         self.state = State::Idle;
     }
 
@@ -819,6 +838,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             dkg_id: self.dkg_id,
             signer_id: self.signer_id,
             comms: Vec::new(),
+            kex_public_key: self.kex_private_key * G,
         };
 
         for poly in &comms {
@@ -868,9 +888,9 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             self.signer_id,
             &self.signer.get_shares()
         );
-        for (key_id, shares) in &self.signer.get_shares() {
+        for (party_id, shares) in &self.signer.get_shares() {
             debug!(
-                "Signer {} addding dkg private share for key_id {key_id}",
+                "Signer {} addding dkg private share for party_id {party_id}",
                 self.signer_id
             );
             // encrypt each share for the recipient
@@ -879,19 +899,18 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             for (dst_key_id, private_share) in shares {
                 if active_key_ids.contains(dst_key_id) {
                     debug!("encrypting dkg private share for key_id {dst_key_id}");
-                    let compressed =
-                        Compressed::from(self.public_keys.key_ids[dst_key_id].to_bytes());
-                    // this should not fail as long as the public key above was valid
-                    let dst_public_key = Point::try_from(&compressed).unwrap();
-                    let shared_secret =
-                        make_shared_secret(&self.network_private_key, &dst_public_key);
+                    let Some(kex_public_key) = self.kex_public_keys.get(dst_key_id) else {
+                        error!("No KEX public key for key_id {dst_key_id}");
+                        return Err(Error::MissingKexPublicKey(*dst_key_id));
+                    };
+                    let shared_secret = make_shared_secret(&self.kex_private_key, &kex_public_key);
                     let encrypted_share = encrypt(&shared_secret, &private_share.to_bytes(), rng)?;
 
                     encrypted_shares.insert(*dst_key_id, encrypted_share);
                 }
             }
 
-            private_shares.shares.push((*key_id, encrypted_shares));
+            private_shares.shares.push((*party_id, encrypted_shares));
         }
 
         let private_shares = Message::DkgPrivateShares(private_shares);
@@ -956,6 +975,16 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             return Ok(vec![]);
         }
 
+        let Some(signer_key_ids) = self.public_keys.signer_key_ids.get(&signer_id) else {
+            warn!(%signer_id, "No key_ids configured");
+            return Ok(vec![]);
+        };
+
+        for key_id in signer_key_ids {
+            self.kex_public_keys
+                .insert(*key_id, dkg_public_shares.kex_public_key);
+        }
+
         self.dkg_public_shares
             .insert(dkg_public_shares.signer_id, dkg_public_shares.clone());
         Ok(vec![])
@@ -973,6 +1002,21 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         // check that the signer_id exists in the config
         let Some(_signer_public_key) = self.public_keys.signers.get(&src_signer_id) else {
             warn!(%src_signer_id, "No public key configured");
+            return Ok(vec![]);
+        };
+
+        let Some(signer_key_ids) = self.public_keys.signer_key_ids.get(&src_signer_id) else {
+            warn!(%src_signer_id, "No key_ids configured");
+            return Ok(vec![]);
+        };
+
+        let Some(signer_key_id) = signer_key_ids.iter().next() else {
+            warn!(%src_signer_id, "No key_ids configured");
+            return Ok(vec![]);
+        };
+
+        let Some(kex_public_key) = self.kex_public_keys.get(signer_key_id) else {
+            warn!(%signer_key_id, "No KEX public key configured");
             return Ok(vec![]);
         };
 
@@ -997,11 +1041,9 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
 
         // make a HashSet of our key_ids so we can quickly query them
         let key_ids: HashSet<u32> = self.signer.get_key_ids().into_iter().collect();
-        let compressed = Compressed::from(self.public_keys.signers[&src_signer_id].to_bytes());
-        // this should not fail as long as the public key above was valid
-        let public_key = Point::try_from(&compressed).unwrap();
-        let shared_key = self.network_private_key * public_key;
-        let shared_secret = make_shared_secret(&self.network_private_key, &public_key);
+
+        let shared_key = self.kex_private_key * kex_public_key;
+        let shared_secret = make_shared_secret(&self.kex_private_key, &kex_public_key);
 
         for (src_id, shares) in &dkg_private_shares.shares {
             let mut decrypted_shares = HashMap::new();
@@ -1296,6 +1338,7 @@ pub mod test {
             dkg_id: 0,
             signer_id: 0,
             comms,
+            kex_public_key: Point::from(Scalar::random(&mut rng)),
         };
         signer.dkg_public_share(&public_share).unwrap();
         assert_eq!(1, signer.dkg_public_shares.len());
@@ -1311,6 +1354,7 @@ pub mod test {
                     poly: vec![],
                 },
             )],
+            kex_public_key: Point::from(Scalar::random(&mut rng)),
         };
         signer.dkg_public_share(&dup_public_share).unwrap();
         assert_eq!(1, signer.dkg_public_shares.len());
@@ -1371,6 +1415,8 @@ pub mod test {
         let private_key2 = Scalar::random(&mut rng);
         let public_key2 = ecdsa::PublicKey::new(&private_key2).unwrap();
         let mut public_keys: PublicKeys = Default::default();
+        let kex_private_key = Scalar::random(&mut rng);
+        let kex_public_key = Point::from(&kex_private_key);
 
         public_keys.signers.insert(0, public_key.clone());
         public_keys.signers.insert(1, public_key2.clone());
@@ -1388,6 +1434,15 @@ pub mod test {
         let mut signer =
             Signer::<v1::Signer>::new(1, 1, 2, 2, 0, vec![1], private_key, public_keys, &mut rng)
                 .unwrap();
+
+        let public_share = DkgPublicShares {
+            dkg_id: 0,
+            signer_id: 1,
+            comms: vec![],
+            kex_public_key,
+        };
+        signer.dkg_public_share(&public_share).unwrap();
+        assert_eq!(1, signer.dkg_public_shares.len());
 
         let private_share = DkgPrivateShares {
             dkg_id: 0,
@@ -1423,6 +1478,8 @@ pub mod test {
         let private_key2 = Scalar::random(&mut rng);
         let public_key2 = ecdsa::PublicKey::new(&private_key2).unwrap();
         let mut public_keys: PublicKeys = Default::default();
+        let kex_private_key = Scalar::random(&mut rng);
+        let kex_public_key = Point::from(&kex_private_key);
 
         public_keys.signers.insert(0, public_key.clone());
         public_keys.signers.insert(1, public_key2.clone());
@@ -1440,6 +1497,15 @@ pub mod test {
         let mut signer =
             Signer::<v2::Signer>::new(1, 1, 2, 2, 0, vec![1], private_key, public_keys, &mut rng)
                 .unwrap();
+
+        let public_share = DkgPublicShares {
+            dkg_id: 0,
+            signer_id: 1,
+            comms: vec![],
+            kex_public_key,
+        };
+        signer.dkg_public_share(&public_share).unwrap();
+        assert_eq!(1, signer.dkg_public_shares.len());
 
         let private_share = DkgPrivateShares {
             dkg_id: 0,
