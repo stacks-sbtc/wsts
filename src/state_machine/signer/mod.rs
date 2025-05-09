@@ -903,7 +903,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                         error!("No KEX public key for key_id {dst_key_id}");
                         return Err(Error::MissingKexPublicKey(*dst_key_id));
                     };
-                    let shared_secret = make_shared_secret(&self.kex_private_key, &kex_public_key);
+                    let shared_secret = make_shared_secret(&self.kex_private_key, kex_public_key);
                     let encrypted_share = encrypt(&shared_secret, &private_share.to_bytes(), rng)?;
 
                     encrypted_shares.insert(*dst_key_id, encrypted_share);
@@ -1043,7 +1043,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         let key_ids: HashSet<u32> = self.signer.get_key_ids().into_iter().collect();
 
         let shared_key = self.kex_private_key * kex_public_key;
-        let shared_secret = make_shared_secret(&self.kex_private_key, &kex_public_key);
+        let shared_secret = make_shared_secret(&self.kex_private_key, kex_public_key);
 
         for (src_id, shares) in &dkg_private_shares.shares {
             let mut decrypted_shares = HashMap::new();
