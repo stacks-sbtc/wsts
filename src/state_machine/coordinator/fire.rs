@@ -279,11 +279,12 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 }
                 State::DkgEndGather => {
                     if let Err(error) = self.gather_dkg_end(packet) {
-                        if let Error::DkgFailure(dkg_failures) = error {
+                        if let Error::DkgFailure(dkg_failures, malicious_signer_ids) = error {
                             return Ok((
                                 None,
                                 Some(OperationResult::DkgError(DkgError::DkgEndFailure(
                                     dkg_failures,
+                                    malicious_signer_ids,
                                 ))),
                             ));
                         } else {
@@ -593,20 +594,23 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         }
 
         let mut dkg_failures = HashMap::new();
+        let mut malicious_signer_ids = HashSet::new();
         let threshold: usize = self.config.threshold.try_into().unwrap();
         if self.dkg_wait_signer_ids.is_empty() {
             // if there are any errors, mark signers malicious and retry
             for (signer_id, dkg_end) in &self.dkg_end_messages {
                 if let DkgStatus::Failure(dkg_failure) = &dkg_end.status {
                     warn!(%signer_id, ?dkg_failure, "DkgEnd failure");
+                    dkg_failures.insert(*signer_id, dkg_failure.clone());
+
                     match dkg_failure {
                         DkgFailure::BadState => {
                             // signer should not be in a bad state so treat as malicious
                             self.malicious_dkg_signer_ids.insert(*signer_id);
-                            dkg_failures.insert(*signer_id, dkg_failure.clone());
+                            malicious_signer_ids.insert(*signer_id);
                         }
                         DkgFailure::Threshold => {
-                            dkg_failures.insert(*signer_id, dkg_failure.clone());
+                            // this shouldn't happen, maybe mark signer malicious?
                         }
                         DkgFailure::BadPublicShares(bad_shares) => {
                             // bad_shares is a set of signer_ids
@@ -615,8 +619,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 let Some(dkg_public_shares) =
                                     self.dkg_public_shares.get(bad_signer_id)
                                 else {
+<<<<<<< HEAD
                                     warn!("Signer {signer_id} reported BadPublicShares from invalid signer_id {bad_signer_id}, mark {signer_id} as malicious");
                                     self.malicious_dkg_signer_ids.insert(*signer_id);
+=======
+                                    warn!("Signer {signer_id} reported BadPublicShares from {bad_signer_id} but there are no public shares from that signer, mark {signer_id} as malicious");
+                                    self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    malicious_signer_ids.insert(*signer_id);
+>>>>>>> 1f77ea8 (use ephemeral keys for DkgPrivateShares DH key exchange)
                                     continue;
                                 };
                                 let mut bad_party_ids = Vec::new();
@@ -634,12 +644,11 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 if bad_party_ids.is_empty() {
                                     warn!("Signer {signer_id} reported BadPublicShares from {bad_signer_id} but the shares were valid, mark {signer_id} as malicious");
                                     self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    malicious_signer_ids.insert(*signer_id);
                                 } else {
                                     warn!("Signer {signer_id} reported BadPublicShares from {bad_signer_id}, mark {bad_signer_id} as malicious");
                                     self.malicious_dkg_signer_ids.insert(*bad_signer_id);
-
-                                    // save legitimate failures to return to caller
-                                    dkg_failures.insert(*signer_id, dkg_failure.clone());
+                                    malicious_signer_ids.insert(*bad_signer_id);
                                 }
                             }
                         }
@@ -647,6 +656,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             // bad_shares is a map of signer_id to BadPrivateShare
                             for (bad_signer_id, bad_private_share) in bad_shares {
                                 // verify the DH tuple proof first so we know the shared key is correct
+<<<<<<< HEAD
                                 let Some(signer_key_ids) =
                                     self.config.public_keys.signer_key_ids.get(signer_id)
                                 else {
@@ -669,6 +679,24 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     continue;
                                 };
                                 let bad_signer_public_key = compute::point(bad_signer_ecdsa_key)?;
+=======
+                                let Some(signer_public_shares) =
+                                    self.dkg_public_shares.get(signer_id)
+                                else {
+                                    warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but there are no public shares from {signer_id}");
+                                    continue;
+                                };
+                                let signer_public_key = signer_public_shares.kex_public_key;
+
+                                let Some(bad_signer_public_shares) =
+                                    self.dkg_public_shares.get(bad_signer_id)
+                                else {
+                                    warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but there are no public shares from {bad_signer_id}");
+                                    continue;
+                                };
+                                let bad_signer_public_key = bad_signer_public_shares.kex_public_key;
+
+>>>>>>> 1f77ea8 (use ephemeral keys for DkgPrivateShares DH key exchange)
                                 let mut is_bad = false;
 
                                 if bad_private_share.tuple_proof.verify(
@@ -680,6 +708,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     let shared_secret =
                                         make_shared_secret_from_key(&bad_private_share.shared_key);
 
+<<<<<<< HEAD
                                     let Some(bad_dkg_public_shares) =
                                         self.dkg_public_shares.get(bad_signer_id)
                                     else {
@@ -688,6 +717,9 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                         continue;
                                     };
                                     let dkg_public_shares = &bad_dkg_public_shares
+=======
+                                    let polys = bad_signer_public_shares
+>>>>>>> 1f77ea8 (use ephemeral keys for DkgPrivateShares DH key exchange)
                                         .comms
                                         .iter()
                                         .cloned()
@@ -695,13 +727,23 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     let Some(dkg_private_shares) =
                                         self.dkg_private_shares.get(bad_signer_id)
                                     else {
+<<<<<<< HEAD
                                         warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares, mark {signer_id} as malicious");
                                         self.malicious_dkg_signer_ids.insert(*signer_id);
                                         continue;
                                     };
+=======
+                                        warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but there are no private shares from {bad_signer_id}");
+                                        continue;
+                                    };
+                                    let signer_key_ids = &self.config.signer_key_ids[signer_id];
+>>>>>>> 1f77ea8 (use ephemeral keys for DkgPrivateShares DH key exchange)
 
                                     for (src_party_id, key_shares) in &dkg_private_shares.shares {
-                                        let poly = &dkg_public_shares[src_party_id];
+                                        let Some(poly) = polys.get(src_party_id) else {
+                                            warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but the private shares from {bad_signer_id} dont have a polynomial for party {src_party_id}");
+                                            continue;
+                                        };
                                         for key_id in signer_key_ids {
                                             let bytes = &key_shares[key_id];
                                             match decrypt(&shared_secret, bytes) {
@@ -741,37 +783,39 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                             }
                                         }
                                     }
+                                } else {
+                                    warn!("TupleProof failed to verify, mark {signer_id} as malicious");
+                                    is_bad = true;
                                 }
 
                                 // if none of the shares were bad sender was malicious
                                 if !is_bad {
                                     warn!("Signer {signer_id} reported BadPrivateShare from {bad_signer_id} but the shares were valid, mark {signer_id} as malicious");
                                     self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    malicious_signer_ids.insert(*signer_id);
                                 } else {
                                     warn!("Signer {signer_id} reported BadPrivateShare from {bad_signer_id}, mark {bad_signer_id} as malicious");
                                     self.malicious_dkg_signer_ids.insert(*bad_signer_id);
-
-                                    // save legitimate failures to return to caller
-                                    dkg_failures.insert(*signer_id, dkg_failure.clone());
+                                    malicious_signer_ids.insert(*bad_signer_id);
                                 }
                             }
                         }
                         DkgFailure::MissingPublicShares(_) => {
-                            dkg_failures.insert(*signer_id, dkg_failure.clone());
+                            // this shouldn't happen, maybe mark signer malicious?
                         }
                         DkgFailure::MissingPrivateShares(_) => {
-                            dkg_failures.insert(*signer_id, dkg_failure.clone());
+                            // this shouldn't happen, maybe mark signer malicious?
                         }
                     }
                 }
             }
             if dkg_failures.is_empty() {
-                warn!("no dkg failures");
+                debug!("no dkg failures");
                 self.dkg_end_gathered()?;
             } else {
                 // TODO: see if we have sufficient non-malicious signers to continue
                 warn!("got dkg failures");
-                return Err(Error::DkgFailure(dkg_failures));
+                return Err(Error::DkgFailure(dkg_failures, malicious_signer_ids));
             }
         }
         Ok(())
@@ -1601,6 +1645,7 @@ pub mod test {
                     poly: vec![],
                 },
             )],
+            kex_public_key: Point::from(Scalar::random(&mut rng)),
         };
         let packet = Packet {
             msg: Message::DkgPublicShares(public_shares.clone()),
@@ -1620,6 +1665,7 @@ pub mod test {
                     poly: vec![],
                 },
             )],
+            kex_public_key: Point::from(Scalar::random(&mut rng)),
         };
         let dup_packet = Packet {
             msg: Message::DkgPublicShares(dup_public_shares.clone()),
@@ -2552,7 +2598,8 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map)) = &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map, _)) =
+            &operation_results[0]
         else {
             panic!("Expected OperationResult::DkgError(DkgError::DkgEndFailure");
         };
@@ -2627,6 +2674,7 @@ pub mod test {
                                 dkg_id: shares.dkg_id,
                                 signer_id: shares.signer_id,
                                 comms,
+                                kex_public_key: Point::new(),
                             }),
                             sig: vec![],
                         }
@@ -2660,7 +2708,8 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map)) = &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map, _)) =
+            &operation_results[0]
         else {
             panic!("Expected OperationResult::DkgError(DkgError::DkgEndFailure)");
         };
@@ -3444,7 +3493,8 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map)) = &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map, malicious_signer_ids)) =
+            &operation_results[0]
         else {
             panic!(
                 "Expected OperationResult::DkgError(DkgError::DkgEndFailure), got {:?}",
@@ -3468,9 +3518,28 @@ pub mod test {
                 }
             }
         }
-        if let Some(failure) = failure_map.get(&0) {
+
+        match failure_map.get(&0) {
+            Some(DkgFailure::BadPublicShares(set)) => {
+                if set.len() != 9 {
+                    panic!("signer 0 should have reported BadPublicShares from all others");
+                } else if set.contains(&0) {
+                    panic!("signer 0 should not have reported BadPublicShares from signer 0");
+                }
+            }
+            Some(failure) => {
+                panic!(
+                    "signer 0 should have reported BadPublicShares, instead reported {failure:?}"
+                );
+            }
+            None => {
+                panic!("signer 0 should have reported BadPublicShares");
+            }
+        }
+
+        if !malicious_signer_ids.len() == 1 || !malicious_signer_ids.contains(&0) {
             panic!(
-                "Coordinator should not have passed along incorrect failure {failure:?} from signer 0",
+                "Coordinator should have marked signer 0 as malicious, instead marked {malicious_signer_ids:?}",
             );
         }
     }
@@ -3541,7 +3610,8 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &[packet]);
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map)) = &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map, _)) =
+            &operation_results[0]
         else {
             panic!("Expected DkgEndFailure got {:?}", operation_results[0]);
         };
