@@ -119,11 +119,12 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 }
                 State::DkgEndGather => {
                     if let Err(error) = self.gather_dkg_end(packet) {
-                        if let Error::DkgFailure(dkg_failures) = error {
+                        if let Error::DkgFailure(dkg_failures, malicious_signer_ids) = error {
                             return Ok((
                                 None,
                                 Some(OperationResult::DkgError(DkgError::DkgEndFailure(
                                     dkg_failures,
+                                    malicious_signer_ids,
                                 ))),
                             ));
                         } else {
@@ -400,7 +401,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             if dkg_failures.is_empty() {
                 self.dkg_end_gathered()?;
             } else {
-                return Err(Error::DkgFailure(dkg_failures));
+                return Err(Error::DkgFailure(dkg_failures, Default::default()));
             }
         }
         Ok(())

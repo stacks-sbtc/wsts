@@ -79,9 +79,9 @@ pub enum Error {
     /// Missing message response information for a signing round
     #[error("Missing message nonce information")]
     MissingMessageNonceInfo,
-    /// DKG failure from signers
+    /// DKG failure from signers, with a map of signer_id to reported errors and new malicious signer_ids
     #[error("DKG failure from signers")]
-    DkgFailure(HashMap<u32, DkgFailure>),
+    DkgFailure(HashMap<u32, DkgFailure>, HashSet<u32>),
     /// Aggregate key does not match supplied party polynomial
     #[error(
         "Aggregate key and computed key from party polynomials mismatch: got {0}, expected {1}"
@@ -1419,7 +1419,7 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert_eq!(outbound_messages.len(), 0);
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(dkg_failures)) =
+        let OperationResult::DkgError(DkgError::DkgEndFailure(dkg_failures, _)) =
             &operation_results[0]
         else {
             panic!(
@@ -1522,7 +1522,7 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert_eq!(outbound_messages.len(), 0);
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(dkg_failures)) =
+        let OperationResult::DkgError(DkgError::DkgEndFailure(dkg_failures, _)) =
             &operation_results[0]
         else {
             panic!(

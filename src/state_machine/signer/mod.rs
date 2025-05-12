@@ -13,7 +13,7 @@ use crate::{
         TupleProof,
     },
     curve::{
-        point::{Compressed, Point, G},
+        point::{Point, G},
         scalar::Scalar,
     },
     errors::{DkgError, EncryptionError},
@@ -598,7 +598,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                                 {
                                     bad_private_shares.insert(
                                         *party_signer_id,
-                                        self.make_bad_private_share(*party_signer_id, rng),
+                                        self.make_bad_private_share(*party_signer_id, rng)?,
                                     );
                                 } else {
                                     warn!("DkgError::BadPrivateShares from party_id {party_id} but no (signer_id, shared_secret) cached");
@@ -1061,7 +1061,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                                 warn!("Failed to parse Scalar for dkg private share from src_id {src_id} to dst_id {dst_key_id}: {e:?}");
                                 self.invalid_private_shares.insert(
                                     src_signer_id,
-                                    self.make_bad_private_share(src_signer_id, rng),
+                                    self.make_bad_private_share(src_signer_id, rng)?,
                                 );
                             }
                         },
@@ -1069,7 +1069,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                             warn!("Failed to decrypt dkg private share from src_id {src_id} to dst_id {dst_key_id}: {e:?}");
                             self.invalid_private_shares.insert(
                                 src_signer_id,
-                                self.make_bad_private_share(src_signer_id, rng),
+                                self.make_bad_private_share(src_signer_id, rng)?,
                             );
                         }
                     }
@@ -1088,25 +1088,41 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         Ok(vec![])
     }
 
+    fn get_kex_public_key(&self, signer_id: u32) -> Result<Point, Error> {
+        let Some(signer_key_ids) = self.public_keys.signer_key_ids.get(&signer_id) else {
+            warn!(%signer_id, "No key_ids configured");
+            return Err(Error::Config(ConfigError::InvalidSignerId(signer_id)));
+        };
+
+        let Some(signer_key_id) = signer_key_ids.iter().next() else {
+            warn!(%signer_id, "No key_ids configured");
+            return Err(Error::Config(ConfigError::InvalidSignerId(signer_id)));
+        };
+
+        let Some(kex_public_key) = self.kex_public_keys.get(signer_key_id) else {
+            warn!(%signer_id, %signer_key_id, "No KEX public key configured");
+            return Err(Error::MissingKexPublicKey(*signer_key_id));
+        };
+
+        Ok(*kex_public_key)
+    }
+
     #[allow(non_snake_case)]
     fn make_bad_private_share<R: RngCore + CryptoRng>(
         &self,
         signer_id: u32,
         rng: &mut R,
-    ) -> BadPrivateShare {
-        let a = self.network_private_key;
+    ) -> Result<BadPrivateShare, Error> {
+        let a = self.kex_private_key;
         let A = a * G;
-        let B = Point::try_from(&Compressed::from(
-            self.public_keys.signers[&signer_id].to_bytes(),
-        ))
-        .unwrap();
+        let B = self.get_kex_public_key(signer_id)?;
         let K = a * B;
         let tuple_proof = TupleProof::new(&a, &A, &B, &K, rng);
 
-        BadPrivateShare {
+        Ok(BadPrivateShare {
             shared_key: K,
             tuple_proof,
-        }
+        })
     }
 }
 
