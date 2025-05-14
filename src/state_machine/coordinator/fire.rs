@@ -613,7 +613,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             // bad_shares is a set of signer_ids
                             for bad_signer_id in bad_shares {
                                 // verify public shares are bad
-                                let dkg_public_shares = &self.dkg_public_shares[bad_signer_id];
+                                let Some(dkg_public_shares) =
+                                    self.dkg_public_shares.get(bad_signer_id)
+                                else {
+                                    warn!("Signer {signer_id} reported BadPublicShares from {bad_signer_id} but there are no public shares from that signer, mark {signer_id} as malicious");
+                                    self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    malicious_signer_ids.insert(*signer_id);
+                                    continue;
+                                };
                                 let mut bad_party_ids = Vec::new();
                                 for (party_id, comm) in &dkg_public_shares.comms {
                                     if !check_public_shares(
