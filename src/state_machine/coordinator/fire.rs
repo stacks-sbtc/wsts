@@ -673,7 +673,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     let shared_secret =
                                         make_shared_secret_from_key(&bad_private_share.shared_key);
 
-                                    let dkg_public_shares = &self.dkg_public_shares[bad_signer_id]
+                                    let polys = bad_signer_public_shares
                                         .comms
                                         .iter()
                                         .cloned()
@@ -683,7 +683,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     let signer_key_ids = &self.config.signer_key_ids[signer_id];
 
                                     for (src_party_id, key_shares) in &dkg_private_shares.shares {
-                                        let poly = &dkg_public_shares[src_party_id];
+                                        let poly = &polys[src_party_id];
                                         for key_id in signer_key_ids {
                                             let bytes = &key_shares[key_id];
                                             match decrypt(&shared_secret, bytes) {
