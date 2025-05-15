@@ -88,9 +88,10 @@ pub mod test_helpers {
         signers: &mut [Signer],
         rng: &mut RNG,
     ) -> Result<HashMap<u32, PolyCommitment>, HashMap<u32, DkgError>> {
+        let ctx = 0u64.to_be_bytes();
         let polys: HashMap<u32, PolyCommitment> = signers
             .iter()
-            .flat_map(|s| s.get_poly_commitments(rng))
+            .flat_map(|s| s.get_poly_commitments(&ctx, rng))
             .map(|comm| (comm.id.id.get_u32(), comm))
             .collect();
 
@@ -103,7 +104,8 @@ pub mod test_helpers {
 
         let mut secret_errors = HashMap::new();
         for signer in signers.iter_mut() {
-            if let Err(signer_secret_errors) = signer.compute_secrets(&private_shares, &polys) {
+            if let Err(signer_secret_errors) = signer.compute_secrets(&private_shares, &polys, &ctx)
+            {
                 secret_errors.extend(signer_secret_errors.into_iter());
             }
         }

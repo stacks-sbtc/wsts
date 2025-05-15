@@ -612,7 +612,11 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 let dkg_public_shares = &self.dkg_public_shares[bad_signer_id];
                                 let mut bad_party_ids = Vec::new();
                                 for (party_id, comm) in &dkg_public_shares.comms {
-                                    if !check_public_shares(comm, threshold) {
+                                    if !check_public_shares(
+                                        comm,
+                                        threshold,
+                                        &self.current_dkg_id.to_be_bytes(),
+                                    ) {
                                         bad_party_ids.push(party_id);
                                     }
                                 }
@@ -1464,6 +1468,7 @@ pub mod test {
 
     /// test basic insertion and detection of duplicates for DkgPublicShares
     fn dkg_public_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
+        let ctx = 0u64.to_be_bytes();
         let mut rng = create_rng();
         let (coordinators, _) = setup::<FireCoordinator<Aggregator>, Signer>(2, 1);
         let mut coordinator: FireCoordinator<Aggregator> = coordinators[0].clone();
@@ -1475,7 +1480,7 @@ pub mod test {
             comms: vec![(
                 0,
                 PolyCommitment {
-                    id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                    id: ID::new(&Scalar::new(), &Scalar::new(), &ctx, &mut rng),
                     poly: vec![],
                 },
             )],
@@ -1494,7 +1499,7 @@ pub mod test {
             comms: vec![(
                 0,
                 PolyCommitment {
-                    id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                    id: ID::new(&Scalar::new(), &Scalar::new(), &ctx, &mut rng),
                     poly: vec![],
                 },
             )],

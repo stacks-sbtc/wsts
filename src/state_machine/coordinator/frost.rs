@@ -1086,6 +1086,7 @@ pub mod test {
 
     /// test basic insertion and detection of duplicates for DkgPublicShares
     fn dkg_public_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
+        let ctx = 0u64.to_be_bytes();
         let mut rng = create_rng();
         let (coordinators, _) = setup::<FrostCoordinator<Aggregator>, Signer>(2, 1);
         let mut coordinator: FrostCoordinator<Aggregator> = coordinators[0].clone();
@@ -1097,7 +1098,7 @@ pub mod test {
             comms: vec![(
                 0,
                 PolyCommitment {
-                    id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                    id: ID::new(&Scalar::new(), &Scalar::new(), &ctx, &mut rng),
                     poly: vec![],
                 },
             )],
@@ -1116,7 +1117,7 @@ pub mod test {
             comms: vec![(
                 0,
                 PolyCommitment {
-                    id: ID::new(&Scalar::new(), &Scalar::new(), &mut rng),
+                    id: ID::new(&Scalar::new(), &Scalar::new(), &ctx, &mut rng),
                     poly: vec![],
                 },
             )],

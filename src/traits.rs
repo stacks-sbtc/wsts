@@ -75,8 +75,12 @@ pub trait Signer: Clone + Debug + PartialEq {
     /// Get the total number of parties
     fn get_num_parties(&self) -> u32;
 
-    /// Get all poly commitments for this signer
-    fn get_poly_commitments<RNG: RngCore + CryptoRng>(&self, rng: &mut RNG) -> Vec<PolyCommitment>;
+    /// Get all poly commitments for this signer and the passed context
+    fn get_poly_commitments<RNG: RngCore + CryptoRng>(
+        &self,
+        ctx: &[u8],
+        rng: &mut RNG,
+    ) -> Vec<PolyCommitment>;
 
     /// Reset all polynomials for this signer
     fn reset_polys<RNG: RngCore + CryptoRng>(&mut self, rng: &mut RNG);
@@ -92,6 +96,7 @@ pub trait Signer: Clone + Debug + PartialEq {
         &mut self,
         shares: &HashMap<u32, HashMap<u32, Scalar>>,
         polys: &HashMap<u32, PolyCommitment>,
+        ctx: &[u8],
     ) -> Result<(), HashMap<u32, DkgError>>;
 
     /// Generate all nonces for this signer
@@ -197,9 +202,10 @@ pub mod test_helpers {
         signers: &mut [Signer],
         rng: &mut RNG,
     ) -> Result<HashMap<u32, PolyCommitment>, HashMap<u32, DkgError>> {
+        let ctx = 0u64.to_be_bytes();
         let public_shares: HashMap<u32, PolyCommitment> = signers
             .iter()
-            .flat_map(|s| s.get_poly_commitments(rng))
+            .flat_map(|s| s.get_poly_commitments(&ctx, rng))
             .map(|comm| (comm.id.id.get_u32(), comm))
             .collect();
         let mut private_shares = HashMap::new();
@@ -213,7 +219,7 @@ pub mod test_helpers {
         let mut secret_errors = HashMap::new();
         for signer in signers.iter_mut() {
             if let Err(signer_secret_errors) =
-                signer.compute_secrets(&private_shares, &public_shares)
+                signer.compute_secrets(&private_shares, &public_shares, &ctx)
             {
                 secret_errors.extend(signer_secret_errors.into_iter());
             }
@@ -236,9 +242,10 @@ pub mod test_helpers {
             !missing_key_ids.is_empty(),
             "Cannot run a missing shares test without specificying at least one missing key id"
         );
+        let ctx = 0u64.to_be_bytes();
         let polys: HashMap<u32, PolyCommitment> = signers
             .iter()
-            .flat_map(|s| s.get_poly_commitments(rng))
+            .flat_map(|s| s.get_poly_commitments(&ctx, rng))
             .map(|comm| (comm.id.id.get_u32(), comm))
             .collect();
         let mut private_shares = HashMap::new();
@@ -256,7 +263,8 @@ pub mod test_helpers {
 
         let mut secret_errors = HashMap::new();
         for signer in signers.iter_mut() {
-            if let Err(signer_secret_errors) = signer.compute_secrets(&private_shares, &polys) {
+            if let Err(signer_secret_errors) = signer.compute_secrets(&private_shares, &polys, &ctx)
+            {
                 secret_errors.extend(signer_secret_errors.into_iter());
             }
         }
@@ -357,10 +365,11 @@ pub mod test_helpers {
         // in the `dkg` helper function above, except we've corrupted the
         // schnorr proof so that we can test verification would fail at
         // the end.
+        let ctx = 0u64.to_be_bytes();
         let bad_party_id = 2u32;
         let public_shares: HashMap<u32, PolyCommitment> = signers
             .iter()
-            .flat_map(|s| s.get_poly_commitments(&mut rng))
+            .flat_map(|s| s.get_poly_commitments(&ctx, &mut rng))
             .map(|comm| {
                 let party_id = comm.id.id.get_u32();
                 if party_id == bad_party_id {
@@ -384,7 +393,7 @@ pub mod test_helpers {
         let mut secret_errors = HashMap::new();
         for signer in signers.iter_mut() {
             if let Err(signer_secret_errors) =
-                signer.compute_secrets(&private_shares, &public_shares)
+                signer.compute_secrets(&private_shares, &public_shares, &ctx)
             {
                 secret_errors.extend(signer_secret_errors.into_iter());
             }
