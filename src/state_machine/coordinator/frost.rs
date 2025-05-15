@@ -730,9 +730,10 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         let Some(group_key) = self.aggregate_public_key else {
             return Err(Error::MissingAggregatePublicKey);
         };
-        let (_, R) = compute::intermediate(&self.message, group_key, &party_ids, &nonces);
+        let (_, aggregate_nonce) =
+            compute::intermediate(&self.message, group_key, &party_ids, &nonces);
 
-        Ok(R)
+        Ok(aggregate_nonce)
     }
 }
 
