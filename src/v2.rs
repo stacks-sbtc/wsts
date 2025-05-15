@@ -252,13 +252,18 @@ impl Party {
         } else {
             self.group_key
         };
-        let (_, R) = compute::intermediate(msg, party_ids, nonces);
+        let (_, R) = compute::intermediate(msg, self.group_key, party_ids, nonces);
         let c = compute::challenge(&tweaked_public_key, &R, msg);
-        let mut r = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
+        let commitment_list: Vec<(Scalar, PublicNonce)> = party_ids
+            .iter()
+            .zip(nonces)
+            .map(|(id, nonce)| (Scalar::from(*id), nonce.clone()))
+            .collect();
+        let mut r = &self.nonce.d
+            + &self.nonce.e * compute::binding(&self.id(), self.group_key, &commitment_list, msg);
         if tweak.is_some() && !R.has_even_y() {
             r = -r;
         }
-
         let mut cx = Scalar::zero();
         for key_id in self.key_ids.iter() {
             cx += c * &self.private_keys[key_id] * compute::lambda(*key_id, key_ids);
@@ -306,7 +311,7 @@ impl Aggregator {
         }
 
         let party_ids: Vec<u32> = sig_shares.iter().map(|ss| ss.id).collect();
-        let (_Rs, R) = compute::intermediate(msg, &party_ids, nonces);
+        let (_Rs, R) = compute::intermediate(msg, self.poly[0], &party_ids, nonces);
         let mut z = Scalar::zero();
         let mut cx_sign = Scalar::one();
         let aggregate_public_key = self.poly[0];
@@ -357,7 +362,7 @@ impl Aggregator {
         }
 
         let party_ids: Vec<u32> = sig_shares.iter().map(|ss| ss.id).collect();
-        let (Rs, R) = compute::intermediate(msg, &party_ids, nonces);
+        let (Rs, R) = compute::intermediate(msg, self.poly[0], &party_ids, nonces);
         let mut bad_party_keys = Vec::new();
         let mut bad_party_sigs = Vec::new();
         let aggregate_public_key = self.poly[0];
@@ -633,12 +638,13 @@ impl traits::Signer for Party {
     }
 
     fn compute_intermediate(
+        &self,
         msg: &[u8],
         signer_ids: &[u32],
         _key_ids: &[u32],
         nonces: &[PublicNonce],
     ) -> (Vec<Point>, Point) {
-        compute::intermediate(msg, signer_ids, nonces)
+        compute::intermediate(msg, self.group_key, signer_ids, nonces)
     }
 
     fn validate_party_id(

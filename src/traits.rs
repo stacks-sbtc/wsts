@@ -108,6 +108,7 @@ pub trait Signer: Clone + Debug + PartialEq {
 
     /// Compute intermediate values
     fn compute_intermediate(
+        &self,
         msg: &[u8],
         signer_ids: &[u32],
         key_ids: &[u32],

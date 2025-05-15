@@ -12,35 +12,75 @@ use crate::{
 };
 
 #[allow(non_snake_case)]
-/// Compute a binding value from the party ID, public nonces, and signed message
-pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
+/// Compute the group commitment from the list of PartyIDs and nonce commitments
+pub fn group_commitment(commitment_list: &[(Scalar, PublicNonce)]) -> Scalar {
     let mut hasher = Sha256::new();
-    let prefix = "WSTS/binding";
+    let prefix = "WSTS/group_commitment";
 
     hasher.update(prefix.as_bytes());
-    hasher.update(id.to_bytes());
-    for b in B {
-        hasher.update(b.D.compress().as_bytes());
-        hasher.update(b.E.compress().as_bytes());
+    for (id, public_nonce) in commitment_list {
+        hasher.update(id.to_bytes());
+        hasher.update(public_nonce.D.compress().as_bytes());
+        hasher.update(public_nonce.E.compress().as_bytes());
     }
-    hasher.update(msg);
+
+    hash_to_scalar(&mut hasher)
+}
+
+#[allow(non_snake_case)]
+/// Compute the group commitment from the list of PartyIDs and nonce commitments
+pub fn group_commitment_compressed(commitment_list: &[(Scalar, Compressed, Compressed)]) -> Scalar {
+    let mut hasher = Sha256::new();
+    let prefix = "WSTS/group_commitment";
+
+    hasher.update(prefix.as_bytes());
+    for (id, hiding_commitment, binding_commitment) in commitment_list {
+        hasher.update(id.to_bytes());
+        hasher.update(hiding_commitment.as_bytes());
+        hasher.update(binding_commitment.as_bytes());
+    }
 
     hash_to_scalar(&mut hasher)
 }
 
 #[allow(non_snake_case)]
 /// Compute a binding value from the party ID, public nonces, and signed message
-pub fn binding_compressed(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8]) -> Scalar {
+pub fn binding(
+    id: &Scalar,
+    group_public_key: Point,
+    commitment_list: &[(Scalar, PublicNonce)],
+    msg: &[u8],
+) -> Scalar {
     let mut hasher = Sha256::new();
     let prefix = "WSTS/binding";
+    let encoded_group_commitment = group_commitment(commitment_list);
 
     hasher.update(prefix.as_bytes());
-    hasher.update(id.to_bytes());
-    for (D, E) in B {
-        hasher.update(D.as_bytes());
-        hasher.update(E.as_bytes());
-    }
+    hasher.update(group_public_key.compress().as_bytes());
     hasher.update(msg);
+    hasher.update(encoded_group_commitment.to_bytes());
+    hasher.update(id.to_bytes());
+
+    hash_to_scalar(&mut hasher)
+}
+
+#[allow(non_snake_case)]
+/// Compute a binding value from the party ID, public nonces, and signed message
+pub fn binding_compressed(
+    id: &Scalar,
+    group_public_key: Point,
+    commitment_list: &[(Scalar, Compressed, Compressed)],
+    msg: &[u8],
+) -> Scalar {
+    let mut hasher = Sha256::new();
+    let prefix = "WSTS/binding";
+    let encoded_group_commitment = group_commitment_compressed(commitment_list);
+
+    hasher.update(prefix.as_bytes());
+    hasher.update(group_public_key.compress().as_bytes());
+    hasher.update(msg);
+    hasher.update(encoded_group_commitment.to_bytes());
+    hasher.update(id.to_bytes());
 
     hash_to_scalar(&mut hasher)
 }
@@ -74,10 +114,20 @@ pub fn lambda(i: u32, key_ids: &[u32]) -> Scalar {
 // Is this the best way to return these values?
 #[allow(non_snake_case)]
 /// Compute the intermediate values used in both the parties and the aggregator
-pub fn intermediate(msg: &[u8], party_ids: &[u32], nonces: &[PublicNonce]) -> (Vec<Point>, Point) {
+pub fn intermediate(
+    msg: &[u8],
+    group_key: Point,
+    party_ids: &[u32],
+    nonces: &[PublicNonce],
+) -> (Vec<Point>, Point) {
+    let commitment_list: Vec<(Scalar, PublicNonce)> = party_ids
+        .iter()
+        .zip(nonces)
+        .map(|(i, nonce)| (Scalar::from(*i), nonce.clone()))
+        .collect();
     let rhos: Vec<Scalar> = party_ids
         .iter()
-        .map(|&i| binding(&id(i), nonces, msg))
+        .map(|i| binding(&id(*i), group_key, &commitment_list, msg))
         .collect();
     let R_vec: Vec<Point> = zip(nonces, rhos)
         .map(|(nonce, rho)| nonce.D + rho * nonce.E)
@@ -91,19 +141,21 @@ pub fn intermediate(msg: &[u8], party_ids: &[u32], nonces: &[PublicNonce]) -> (V
 /// Compute the aggregate nonce
 pub fn aggregate_nonce(
     msg: &[u8],
+    group_key: Point,
     party_ids: &[u32],
     nonces: &[PublicNonce],
 ) -> Result<Point, PointError> {
-    let compressed_nonces: Vec<(Compressed, Compressed)> = nonces
+    let commitment_list: Vec<(Scalar, Compressed, Compressed)> = party_ids
         .iter()
-        .map(|nonce| (nonce.D.compress(), nonce.E.compress()))
+        .zip(nonces)
+        .map(|(id, nonce)| (Scalar::from(*id), nonce.D.compress(), nonce.E.compress()))
         .collect();
     let scalars: Vec<Scalar> = party_ids
         .iter()
         .flat_map(|&i| {
             [
                 Scalar::from(1),
-                binding_compressed(&id(i), &compressed_nonces, msg),
+                binding_compressed(&id(i), group_key, &commitment_list, msg),
             ]
         })
         .collect();
