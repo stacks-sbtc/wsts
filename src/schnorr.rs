@@ -75,7 +75,7 @@ impl ID {
     }
 
     /// Zero out the schnorr proof
-    pub fn zero(&mut self) {
+    pub fn zeroize(&mut self) {
         self.random_commitment = Point::new();
         self.sigma_response = Scalar::zero();
     }

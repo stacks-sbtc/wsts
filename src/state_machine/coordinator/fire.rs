@@ -743,7 +743,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         for signer_id in self.dkg_private_shares.keys() {
             for (party_id, comm) in &self.dkg_public_shares[signer_id].comms {
                 let mut comm = comm.clone();
-                comm.zero();
+                comm.zeroize();
                 self.party_polynomials.insert(*party_id, comm);
             }
         }

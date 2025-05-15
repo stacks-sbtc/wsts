@@ -415,7 +415,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             };
             for (party_id, comm) in &dkg_public_shares.comms {
                 let mut comm = comm.clone();
-                comm.zero();
+                comm.zeroize();
                 self.party_polynomials.insert(*party_id, comm);
             }
         }

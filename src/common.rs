@@ -39,8 +39,8 @@ impl PolyCommitment {
     }
 
     /// Zero out the schnorr::ID
-    pub fn zero(&mut self) {
-        self.id.zero();
+    pub fn zeroize(&mut self) {
+        self.id.zeroize();
     }
 
     /// Check if schnorr proof is zeroed out

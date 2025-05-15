@@ -624,7 +624,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
 
         for (_, dps) in self.dkg_public_shares.iter_mut() {
             for (_, comm) in dps.comms.iter_mut() {
-                comm.zero();
+                comm.zeroize();
             }
         }
         let dkg_public_shares = self.dkg_public_shares.clone();
