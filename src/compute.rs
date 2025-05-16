@@ -1,5 +1,4 @@
 use core::iter::zip;
-use elliptic_curve::Error as EllipticCurveError;
 use num_traits::{One, Zero};
 use sha2::{Digest, Sha256};
 
@@ -9,13 +8,12 @@ use crate::{
         point::{Compressed, Error as PointError, Point, G},
         scalar::Scalar,
     },
-    errors::AggregatorError,
     util::{expand_to_scalar, hash_to_scalar},
 };
 
 #[allow(non_snake_case)]
 /// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
-pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Result<Scalar, EllipticCurveError> {
+pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
     let prefix = b"WSTS/binding";
 
     // Serialize all input into a buffer
@@ -30,15 +28,12 @@ pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Result<Scalar, Ell
     buf.extend_from_slice(msg);
 
     expand_to_scalar(&buf, prefix)
+        .expect("FATAL: DST is less than 256 bytes so operation should not fail")
 }
 
 #[allow(non_snake_case)]
 /// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
-pub fn binding_compressed(
-    id: &Scalar,
-    B: &[(Compressed, Compressed)],
-    msg: &[u8],
-) -> Result<Scalar, EllipticCurveError> {
+pub fn binding_compressed(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8]) -> Scalar {
     let prefix = b"WSTS/binding";
 
     // Serialize all input into a buffer
@@ -53,11 +48,12 @@ pub fn binding_compressed(
     buf.extend_from_slice(msg);
 
     expand_to_scalar(&buf, prefix)
+        .expect("FATAL: DST is less than 256 bytes so operation should not fail")
 }
 
 #[allow(non_snake_case)]
 /// Compute the schnorr challenge from the public key, aggregated commitments, and the signed message using XMD-based expansion.
-pub fn challenge(publicKey: &Point, R: &Point, msg: &[u8]) -> Result<Scalar, EllipticCurveError> {
+pub fn challenge(publicKey: &Point, R: &Point, msg: &[u8]) -> Scalar {
     let tag = "BIP0340/challenge";
 
     // Combine the tag with the public key and R point data for XMD
@@ -68,6 +64,7 @@ pub fn challenge(publicKey: &Point, R: &Point, msg: &[u8]) -> Result<Scalar, Ell
 
     // Use expand_to_scalar to process the message and produce the challenge scalar
     expand_to_scalar(&combined_msg, tag.as_bytes())
+        .expect("FATAL: DST is less than 256 bytes so operation should not fail")
 }
 
 /// Compute the Lagrange interpolation value
@@ -86,21 +83,17 @@ pub fn lambda(i: u32, key_ids: &[u32]) -> Scalar {
 // Is this the best way to return these values?
 #[allow(non_snake_case)]
 /// Compute the intermediate values used in both the parties and the aggregator
-pub fn intermediate(
-    msg: &[u8],
-    party_ids: &[u32],
-    nonces: &[PublicNonce],
-) -> Result<(Vec<Point>, Point), EllipticCurveError> {
+pub fn intermediate(msg: &[u8], party_ids: &[u32], nonces: &[PublicNonce]) -> (Vec<Point>, Point) {
     let rhos: Vec<Scalar> = party_ids
         .iter()
         .map(|&i| binding(&id(i), nonces, msg))
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect();
     let R_vec: Vec<Point> = zip(nonces, rhos)
         .map(|(nonce, rho)| nonce.D + rho * nonce.E)
         .collect();
 
     let R = R_vec.iter().fold(Point::zero(), |R, &R_i| R + R_i);
-    Ok((R_vec, R))
+    (R_vec, R)
 }
 
 #[allow(non_snake_case)]
@@ -109,23 +102,23 @@ pub fn aggregate_nonce(
     msg: &[u8],
     party_ids: &[u32],
     nonces: &[PublicNonce],
-) -> Result<Point, AggregatorError> {
+) -> Result<Point, PointError> {
     let compressed_nonces: Vec<(Compressed, Compressed)> = nonces
         .iter()
         .map(|nonce| (nonce.D.compress(), nonce.E.compress()))
         .collect();
     let scalars: Vec<Scalar> = party_ids
         .iter()
-        .map(|&i| {
-            let one = Scalar::from(1);
-            let binding = binding_compressed(&id(i), &compressed_nonces, msg)?;
-            Ok(vec![one, binding])
+        .flat_map(|&i| {
+            [
+                Scalar::from(1),
+                binding_compressed(&id(i), &compressed_nonces, msg),
+            ]
         })
-        .collect::<Result<Vec<_>, EllipticCurveError>>() // Vec<Vec<Scalar>>
-        .map(|nested| nested.into_iter().flatten().collect())?;
+        .collect();
     let points: Vec<Point> = nonces.iter().flat_map(|nonce| [nonce.D, nonce.E]).collect();
 
-    Ok(Point::multimult(scalars, points)?)
+    Point::multimult(scalars, points)
 }
 
 /// Compute a one-based Scalar from a zero-based integer

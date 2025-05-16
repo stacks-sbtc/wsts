@@ -7,7 +7,6 @@ use crate::{
     taproot::SchnorrProof,
 };
 use core::{cmp::PartialEq, fmt::Debug};
-use elliptic_curve::Error as EllipticCurveError;
 use hashbrown::{HashMap, HashSet};
 use std::{
     collections::BTreeMap,
@@ -91,20 +90,11 @@ pub enum Error {
     /// Supplied party polynomial contained duplicate party IDs
     #[error("Supplied party polynomials contained a duplicate party ID")]
     DuplicatePartyId,
-    /// An error during elliptic curve operations
-    #[error("An elliptic curve error occurred: {0}")]
-    EllipticCurveError(String),
 }
 
 impl From<AggregatorError> for Error {
     fn from(err: AggregatorError) -> Self {
         Error::Aggregator(err)
-    }
-}
-
-impl From<EllipticCurveError> for Error {
-    fn from(err: EllipticCurveError) -> Self {
-        Error::EllipticCurveError(err.to_string())
     }
 }
 

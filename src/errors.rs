@@ -27,15 +27,6 @@ pub enum DkgError {
     #[error("integer conversion error")]
     /// An error during integer conversion operations
     TryFromInt,
-    /// An error during elliptic curve operations
-    #[error("elliptic curve error {0}")]
-    EllipticCurveError(String),
-}
-
-impl From<EllipticCurveError> for DkgError {
-    fn from(e: EllipticCurveError) -> Self {
-        Self::EllipticCurveError(e.to_string())
-    }
 }
 
 impl From<TryFromIntError> for DkgError {
@@ -65,12 +56,6 @@ pub enum AggregatorError {
     #[error("integer conversion error")]
     /// An error during integer conversion operations
     TryFromInt,
-    /// An error during point operations
-    #[error("point error {0:?}")]
-    Point(#[from] PointError),
-    #[error("elliptic curve error {0}")]
-    /// An error during elliptic curve operations
-    EllipticCurveError(String),
 }
 
 impl From<TryFromIntError> for AggregatorError {
@@ -79,14 +64,14 @@ impl From<TryFromIntError> for AggregatorError {
     }
 }
 
-impl From<EllipticCurveError> for AggregatorError {
+impl From<EllipticCurveError> for EncryptionError {
     fn from(e: EllipticCurveError) -> Self {
-        Self::EllipticCurveError(e.to_string())
+        Self::EllipticCurveError(e)
     }
 }
 
 #[derive(Error, Debug, Clone, PartialEq)]
-/// Errors which can happen during signature aggregation
+/// Errors which can happen during encryption
 pub enum EncryptionError {
     #[error("AES nonce was missing from the buffer")]
     /// AES nonce was missing from the buffer")]
@@ -97,6 +82,9 @@ pub enum EncryptionError {
     #[error("AES GCM error {0:?}")]
     /// Wrapped aes_gcm::Error, an opaque type
     AesGcm(AesGcmError),
+    /// Wrapped elliptic_curve::Error
+    #[error("Elliptic curve error {0:?}")]
+    EllipticCurveError(EllipticCurveError),
 }
 
 impl From<AesGcmError> for EncryptionError {

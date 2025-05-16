@@ -534,7 +534,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             );
         }
         if self.ids_to_await.is_empty() {
-            let aggregate_nonce = self.compute_aggregate_nonce()?;
+            let aggregate_nonce = self.compute_aggregate_nonce();
             info!(
                 %aggregate_nonce,
                 "Aggregate nonce"
@@ -715,7 +715,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
     }
 
     #[allow(non_snake_case)]
-    fn compute_aggregate_nonce(&self) -> Result<Point, Error> {
+    fn compute_aggregate_nonce(&self) -> Point {
         // XXX this needs to be key_ids for v1 and signer_ids for v2
         let party_ids = self
             .public_nonces
@@ -727,9 +727,9 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             .values()
             .flat_map(|pn| pn.nonces.clone())
             .collect::<Vec<PublicNonce>>();
-        let (_, R) = compute::intermediate(&self.message, &party_ids, &nonces)?;
+        let (_, R) = compute::intermediate(&self.message, &party_ids, &nonces);
 
-        Ok(R)
+        R
     }
 }
 

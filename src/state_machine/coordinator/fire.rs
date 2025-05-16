@@ -895,7 +895,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             if nonce_info.nonce_recv_key_ids.len() >= self.config.threshold as usize {
                 // We have a winning message!
                 self.message.clone_from(&nonce_response.message);
-                let aggregate_nonce = self.compute_aggregate_nonce()?;
+                let aggregate_nonce = self.compute_aggregate_nonce();
                 info!("Aggregate nonce: {aggregate_nonce}");
 
                 self.move_to(State::SigShareRequest(signature_type))?;
@@ -1096,7 +1096,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
     }
 
     #[allow(non_snake_case)]
-    fn compute_aggregate_nonce(&self) -> Result<Point, Error> {
+    fn compute_aggregate_nonce(&self) -> Point {
         // XXX this needs to be key_ids for v1 and signer_ids for v2
         let public_nonces = self
             .message_nonces
@@ -1114,9 +1114,9 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             .cloned()
             .flat_map(|pn| pn.nonces)
             .collect::<Vec<PublicNonce>>();
-        let (_, R) = compute::intermediate(&self.message, &party_ids, &nonces)?;
+        let (_, R) = compute::intermediate(&self.message, &party_ids, &nonces);
 
-        Ok(R)
+        R
     }
 
     fn compute_dkg_public_size(&self) -> u32 {

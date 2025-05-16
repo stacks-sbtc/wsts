@@ -243,9 +243,7 @@ impl Signature {
     #[allow(non_snake_case)]
     /// Verify the aggregated group signature
     pub fn verify(&self, public_key: &Point, msg: &[u8]) -> bool {
-        let Ok(c) = challenge(public_key, &self.R, msg) else {
-            return false;
-        };
+        let c = challenge(public_key, &self.R, msg);
         let R = &self.z * G + (-c) * public_key;
 
         R == self.R
