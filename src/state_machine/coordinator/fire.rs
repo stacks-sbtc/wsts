@@ -651,6 +651,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 let Some(signer_public_shares) =
                                     self.dkg_public_shares.get(signer_id)
                                 else {
+                                    warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but there are no public shares from {signer_id}");
                                     continue;
                                 };
                                 let signer_public_key = signer_public_shares.kex_public_key;
@@ -658,6 +659,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 let Some(bad_signer_public_shares) =
                                     self.dkg_public_shares.get(bad_signer_id)
                                 else {
+                                    warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but there are no public shares from {bad_signer_id}");
                                     continue;
                                 };
                                 let bad_signer_public_key = bad_signer_public_shares.kex_public_key;
@@ -678,12 +680,19 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                         .iter()
                                         .cloned()
                                         .collect::<HashMap<u32, PolyCommitment>>();
-                                    let dkg_private_shares =
-                                        &self.dkg_private_shares[bad_signer_id];
+                                    let Some(dkg_private_shares) =
+                                        self.dkg_private_shares.get(bad_signer_id)
+                                    else {
+                                        warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but there are no private shares from {bad_signer_id}");
+                                        continue;
+                                    };
                                     let signer_key_ids = &self.config.signer_key_ids[signer_id];
 
                                     for (src_party_id, key_shares) in &dkg_private_shares.shares {
-                                        let poly = &polys[src_party_id];
+                                        let Some(poly) = polys.get(src_party_id) else {
+                                            warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but the private shares from {bad_signer_id} dont have a polynomial for party {src_party_id}");
+                                            continue;
+                                        };
                                         for key_id in signer_key_ids {
                                             let bytes = &key_shares[key_id];
                                             match decrypt(&shared_secret, bytes) {
@@ -750,7 +759,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 }
             }
             if dkg_failures.is_empty() {
-                warn!("no dkg failures");
+                debug!("no dkg failures");
                 self.dkg_end_gathered()?;
             } else {
                 // TODO: see if we have sufficient non-malicious signers to continue
