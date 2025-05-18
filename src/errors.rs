@@ -1,5 +1,6 @@
 use aes_gcm::Error as AesGcmError;
 use core::num::TryFromIntError;
+use elliptic_curve::Error as EllipticCurveError;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
@@ -22,16 +23,10 @@ pub enum DkgError {
     BadPrivateShares(Vec<u32>),
     #[error("point error {0:?}")]
     /// An error during point operations
-    Point(PointError),
+    Point(#[from] PointError),
     #[error("integer conversion error")]
     /// An error during integer conversion operations
     TryFromInt,
-}
-
-impl From<PointError> for DkgError {
-    fn from(e: PointError) -> Self {
-        DkgError::Point(e)
-    }
 }
 
 impl From<TryFromIntError> for DkgError {
@@ -69,8 +64,14 @@ impl From<TryFromIntError> for AggregatorError {
     }
 }
 
+impl From<EllipticCurveError> for EncryptionError {
+    fn from(e: EllipticCurveError) -> Self {
+        Self::EllipticCurveError(e)
+    }
+}
+
 #[derive(Error, Debug, Clone, PartialEq)]
-/// Errors which can happen during signature aggregation
+/// Errors which can happen during encryption
 pub enum EncryptionError {
     #[error("AES nonce was missing from the buffer")]
     /// AES nonce was missing from the buffer")]
@@ -81,6 +82,9 @@ pub enum EncryptionError {
     #[error("AES GCM error {0:?}")]
     /// Wrapped aes_gcm::Error, an opaque type
     AesGcm(AesGcmError),
+    /// Wrapped elliptic_curve::Error
+    #[error("Elliptic curve error {0:?}")]
+    EllipticCurveError(EllipticCurveError),
 }
 
 impl From<AesGcmError> for EncryptionError {

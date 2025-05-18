@@ -30,13 +30,11 @@ impl SchnorrProof {
     /// Verify a BIP-340 schnorr proof
     #[allow(non_snake_case)]
     pub fn verify(&self, public_key: &field::Element, msg: &[u8]) -> bool {
-        let Y = match Point::lift_x(public_key) {
-            Ok(Y) => Y,
-            Err(_) => return false,
+        let Ok(Y) = Point::lift_x(public_key) else {
+            return false;
         };
-        let R = match Point::lift_x(&self.r) {
-            Ok(R) => R,
-            Err(_) => return false,
+        let Ok(R) = Point::lift_x(&self.r) else {
+            return false;
         };
         let c = compute::challenge(&Y, &R, msg);
         let Rp = self.s * G - c * Y;

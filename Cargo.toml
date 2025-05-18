@@ -17,6 +17,7 @@ with_p256k1_bindgen = ["p256k1/with_bindgen"]
 [dependencies]
 aes-gcm = "0.10"
 bs58 = "0.5"
+elliptic-curve = { version = "0.13.8", features = ["hash2curve"] }
 hashbrown = { version = "0.14", features = ["serde"] }
 hex = "0.4.3"
 num-traits = "0.2"

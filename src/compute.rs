@@ -8,54 +8,63 @@ use crate::{
         point::{Compressed, Error as PointError, Point, G},
         scalar::Scalar,
     },
-    util::hash_to_scalar,
+    util::{expand_to_scalar, hash_to_scalar},
 };
 
 #[allow(non_snake_case)]
-/// Compute a binding value from the party ID, public nonces, and signed message
+/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
 pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
-    let mut hasher = Sha256::new();
-    let prefix = "WSTS/binding";
+    let prefix = b"WSTS/binding";
 
-    hasher.update(prefix.as_bytes());
-    hasher.update(id.to_bytes());
+    // Serialize all input into a buffer
+    let mut buf = Vec::new();
+    buf.extend_from_slice(&id.to_bytes());
+
     for b in B {
-        hasher.update(b.D.compress().as_bytes());
-        hasher.update(b.E.compress().as_bytes());
+        buf.extend_from_slice(b.D.compress().as_bytes());
+        buf.extend_from_slice(b.E.compress().as_bytes());
     }
-    hasher.update(msg);
 
-    hash_to_scalar(&mut hasher)
+    buf.extend_from_slice(msg);
+
+    expand_to_scalar(&buf, prefix)
+        .expect("FATAL: DST is less than 256 bytes so operation should not fail")
 }
 
 #[allow(non_snake_case)]
-/// Compute a binding value from the party ID, public nonces, and signed message
+/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
 pub fn binding_compressed(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8]) -> Scalar {
-    let mut hasher = Sha256::new();
-    let prefix = "WSTS/binding";
+    let prefix = b"WSTS/binding";
 
-    hasher.update(prefix.as_bytes());
-    hasher.update(id.to_bytes());
+    // Serialize all input into a buffer
+    let mut buf = Vec::new();
+    buf.extend_from_slice(&id.to_bytes());
+
     for (D, E) in B {
-        hasher.update(D.as_bytes());
-        hasher.update(E.as_bytes());
+        buf.extend_from_slice(D.as_bytes());
+        buf.extend_from_slice(E.as_bytes());
     }
-    hasher.update(msg);
 
-    hash_to_scalar(&mut hasher)
+    buf.extend_from_slice(msg);
+
+    expand_to_scalar(&buf, prefix)
+        .expect("FATAL: DST is less than 256 bytes so operation should not fail")
 }
 
 #[allow(non_snake_case)]
-/// Compute the schnorr challenge from the public key, aggregated commitments, and the signed message
+/// Compute the schnorr challenge from the public key, aggregated commitments, and the signed message using XMD-based expansion.
 pub fn challenge(publicKey: &Point, R: &Point, msg: &[u8]) -> Scalar {
     let tag = "BIP0340/challenge";
-    let mut hasher = tagged_hash(tag);
 
-    hasher.update(R.x().to_bytes());
-    hasher.update(publicKey.x().to_bytes());
-    hasher.update(msg);
+    // Combine the tag with the public key and R point data for XMD
+    let mut combined_msg = Vec::new();
+    combined_msg.extend_from_slice(R.x().to_bytes().as_ref());
+    combined_msg.extend_from_slice(publicKey.x().to_bytes().as_ref());
+    combined_msg.extend_from_slice(msg);
 
-    hash_to_scalar(&mut hasher)
+    // Use expand_to_scalar to process the message and produce the challenge scalar
+    expand_to_scalar(&combined_msg, tag.as_bytes())
+        .expect("FATAL: DST is less than 256 bytes so operation should not fail")
 }
 
 /// Compute the Lagrange interpolation value

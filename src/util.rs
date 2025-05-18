@@ -1,4 +1,8 @@
 use aes_gcm::{aead::Aead, Aes256Gcm, KeyInit, Nonce};
+use elliptic_curve::{
+    hash2curve::{ExpandMsg, ExpandMsgXmd, Expander},
+    Error as EllipticCurveError,
+};
 use rand_core::{CryptoRng, OsRng, RngCore};
 use sha2::{Digest, Sha256};
 
@@ -9,6 +13,25 @@ use crate::{
 
 /// Size of the AES-GCM nonce
 pub const AES_GCM_NONCE_SIZE: usize = 12;
+
+/// Expands a message using the XMD (eXpandable Message Digest) method with SHA-256, and reduces
+/// the result modulo the curve order to produce a `Scalar`.
+///
+/// # Arguments
+/// - `msg`: The input message to be expanded.
+/// - `dst`: A domain separation tag (DST). Must be 255 bytes or fewer, as required by the
+///   hash-to-curve specification.
+///
+/// # Returns
+/// - `Ok(Scalar)`: A scalar derived by expanding and reducing the message.
+/// - `Err(EllipticCurveError)`: If `dst` is longer than 255 bytes
+pub fn expand_to_scalar(msg: &[u8], dst: &[u8]) -> Result<Scalar, EllipticCurveError> {
+    // The requested output length (32 bytes) means that the underlying hash function will not fail.
+    let mut buf = [0u8; 32];
+    // This will only fail if the dst exceeds 255 bytes.
+    ExpandMsgXmd::<Sha256>::expand_message(&[msg], &[dst], buf.len())?.fill_bytes(&mut buf);
+    Ok(Scalar::from(buf))
+}
 
 #[allow(dead_code)]
 /// Digest the hasher to a Scalar
