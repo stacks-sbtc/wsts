@@ -1702,7 +1702,7 @@ pub mod test {
             .unwrap();
         assert_eq!(1, coordinator.signature_shares.len());
 
-        // check that a duplicate private share is ignored
+        // check that a signature share is ignored due to not being on the wait list
         let dup_signature_share = SignatureShare {
             id: 1,
             z_i: Scalar::random(&mut rng),
@@ -1722,6 +1722,35 @@ pub mod test {
         coordinator
             .gather_sig_shares(&packet, signature_type)
             .unwrap();
+        assert_eq!(1, coordinator.signature_shares.len());
+
+        // check that a duplicate signature share is ignored even if on the wait list
+        let response_info = coordinator
+            .message_nonces
+            .entry(coordinator.message.clone())
+            .or_default();
+        response_info.sign_wait_signer_ids.insert(0);
+
+        let dup_signature_share = SignatureShare {
+            id: 1,
+            z_i: Scalar::random(&mut rng),
+            key_ids: vec![1],
+        };
+        let dup_sig_share_response = SignatureShareResponse {
+            dkg_id: 0,
+            sign_id: 0,
+            sign_iter_id: 0,
+            signer_id: 0,
+            signature_shares: vec![dup_signature_share.clone()],
+        };
+        let packet = Packet {
+            msg: Message::SignatureShareResponse(dup_sig_share_response.clone()),
+            sig: Default::default(),
+        };
+        coordinator
+            .gather_sig_shares(&packet, signature_type)
+            .unwrap();
+
         assert_eq!(1, coordinator.signature_shares.len());
         assert_eq!(
             vec![signature_share],
