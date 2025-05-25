@@ -414,7 +414,9 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 return Err(Error::BadStateChange(format!("Should not have transitioned to DkgEndGather since we were missing DkgPublicShares from signer {signer_id}")));
             };
             for (party_id, comm) in &dkg_public_shares.comms {
-                self.party_polynomials.insert(*party_id, comm.clone());
+                let mut comm = comm.clone();
+                comm.zeroize();
+                self.party_polynomials.insert(*party_id, comm);
             }
         }
 
@@ -428,6 +430,9 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             %key,
             "Aggregate public key"
         );
+        self.dkg_public_shares.clear();
+        self.dkg_private_shares.clear();
+
         self.aggregate_public_key = Some(key);
         self.move_to(State::Idle)
     }
@@ -975,8 +980,9 @@ pub mod test {
             frost::Coordinator as FrostCoordinator,
             test::{
                 bad_signature_share_request, check_signature_shares, coordinator_state_machine,
-                empty_private_shares, empty_public_shares, equal_after_save_load, invalid_nonce,
-                new_coordinator, run_dkg_sign, setup, start_dkg_round,
+                empty_private_shares, empty_public_shares, equal_after_save_load, gen_nonces,
+                invalid_nonce, new_coordinator, run_dkg_sign, sensitive_data, setup,
+                start_dkg_round,
             },
             Config, Coordinator as CoordinatorTrait, State,
         },
@@ -1395,6 +1401,26 @@ pub mod test {
             SignatureType::Taproot(Some([23u8; 32])),
             vec![0],
         );
+    }
+
+    #[test]
+    fn gen_nonces_v1() {
+        gen_nonces::<FrostCoordinator<v1::Aggregator>, v1::Signer>(5, 1);
+    }
+
+    #[test]
+    fn gen_nonces_v2() {
+        gen_nonces::<FrostCoordinator<v2::Aggregator>, v2::Signer>(5, 1);
+    }
+
+    #[test]
+    fn sensitive_data_v1() {
+        sensitive_data::<FrostCoordinator<v1::Aggregator>, v1::Signer>(5, 1);
+    }
+
+    #[test]
+    fn sensitive_data_v2() {
+        sensitive_data::<FrostCoordinator<v2::Aggregator>, v2::Signer>(5, 1);
     }
 
     #[test]
