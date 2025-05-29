@@ -2,7 +2,7 @@ use bitcoin::{
     absolute::LockTime,
     consensus::Encodable,
     key::TapTweak,
-    secp256k1::{self, Secp256k1, Signing, Verification, XOnlyPublicKey},
+    secp256k1::{self, Secp256k1, Verification, XOnlyPublicKey},
     sighash::{Prevouts, SighashCache},
     taproot::Signature,
     transaction::Version,
@@ -317,8 +317,11 @@ mod test {
             }
         };
 
-        let mut S = [signers[0].clone(), signers[1].clone(), signers[3].clone()].to_vec();
-        let key_ids = S.iter().flat_map(|s| s.get_key_ids()).collect::<Vec<u32>>();
+        let mut signing_set = [signers[0].clone(), signers[1].clone(), signers[3].clone()].to_vec();
+        let key_ids = signing_set
+            .iter()
+            .flat_map(|s| s.get_key_ids())
+            .collect::<Vec<u32>>();
         let mut sig_agg = v2::Aggregator::new(num_keys, threshold);
         sig_agg.init(&polys).expect("aggregator init failed");
         let tweaked_public_key = compute::tweaked_public_key(&sig_agg.poly[0], merkle_root);
@@ -335,7 +338,8 @@ mod test {
 
         // Sign the taproot sighash.
         let msg: &[u8] = tapsig.as_ref();
-        let (nonces, sig_shares) = test_helpers::sign(msg, &mut S, &mut OsRng, merkle_root);
+        let (nonces, sig_shares) =
+            test_helpers::sign(msg, &mut signing_set, &mut OsRng, merkle_root);
         let proof = match sig_agg.sign_taproot(msg, &nonces, &sig_shares, &key_ids, merkle_root) {
             Err(e) => panic!("Aggregator sign failed: {:?}", e),
             Ok(proof) => proof,
