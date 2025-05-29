@@ -56,15 +56,13 @@ pub fn binding_compressed(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8
 pub fn challenge(publicKey: &Point, R: &Point, msg: &[u8]) -> Scalar {
     let tag = "BIP0340/challenge";
 
-    // Combine the tag with the public key and R point data for XMD
-    let mut combined_msg = Vec::new();
-    combined_msg.extend_from_slice(R.x().to_bytes().as_ref());
-    combined_msg.extend_from_slice(publicKey.x().to_bytes().as_ref());
-    combined_msg.extend_from_slice(msg);
+    let mut hasher = tagged_hash(tag);
 
-    // Use expand_to_scalar to process the message and produce the challenge scalar
-    expand_to_scalar(&combined_msg, tag.as_bytes())
-        .expect("FATAL: DST is less than 256 bytes so operation should not fail")
+    hasher.update(R.x().to_bytes());
+    hasher.update(publicKey.x().to_bytes());
+    hasher.update(msg);
+
+    hash_to_scalar(&mut hasher)
 }
 
 /// Compute the Lagrange interpolation value
