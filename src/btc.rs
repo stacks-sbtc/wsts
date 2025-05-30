@@ -9,7 +9,7 @@ use bitcoin::{
     Amount, OutPoint, ScriptBuf, Sequence, TapSighash, TapSighashType, Transaction, TxIn, TxOut,
     Witness,
 };
-//use hashbrown::HashMap;
+
 use std::sync::LazyLock;
 
 /// A dummy Schnorr signature.
@@ -18,7 +18,7 @@ static DUMMY_SIGNATURE: LazyLock<Signature> = LazyLock::new(|| Signature {
     sighash_type: TapSighashType::All,
 });
 
-/// foo
+/// An error type that wraps the various bitcoin related arrors which we may encounter
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     /// An IO error was returned from the [`bitcoin`] library. This is usually an
@@ -33,7 +33,7 @@ pub enum Error {
     Taproot(#[from] bitcoin::sighash::TaprootError),
 }
 
-/// foo
+/// An unspent transaction output, which contains all of the information needed to identify or spend
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct UTxO {
     /// The outpoint of the signers' UTXO
@@ -78,7 +78,7 @@ impl UTxO {
     }
 }
 
-/// foo
+/// A transaction which we will use to see if we can construct a valid signature
 pub struct UnsignedTx {
     /// utxo
     pub utxo: UTxO,
@@ -200,7 +200,7 @@ mod test {
 
     #[test]
     fn verify_sig_some_merkle_root() {
-        // XXX something is broken when passing a merkle root
+        // XXX key spends with a merkle root are not working
         //verify_sig(Some([0u8; 32]))
     }
 
@@ -325,7 +325,7 @@ mod test {
         let mut sig_agg = v2::Aggregator::new(num_keys, threshold);
         sig_agg.init(&polys).expect("aggregator init failed");
         let tweaked_public_key = compute::tweaked_public_key(&sig_agg.poly[0], merkle_root);
-        //let aggregate_key = XOnlyPublicKey::from_slice(&tweaked_public_key.x().to_bytes())
+        // taproot code within both wsts and libsecp256k1 will take care of tweaking the key
         let aggregate_key = XOnlyPublicKey::from_slice(&sig_agg.poly[0].x().to_bytes())
             .expect("failed to make XOnlyPublicKey");
 
