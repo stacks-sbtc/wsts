@@ -35,7 +35,7 @@ pub enum Error {
 
 /// An unspent transaction output, which contains all of the information needed to identify or spend
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct UTxO {
+pub struct Utxo {
     /// The outpoint of the signers' UTXO
     pub outpoint: OutPoint,
     /// The amount associated with the above UTXO
@@ -44,7 +44,7 @@ pub struct UTxO {
     pub public_key: XOnlyPublicKey,
 }
 
-impl UTxO {
+impl Utxo {
     /// Create a TxIn object for the signers' UTXO
     ///
     /// The signers' UTXO is always a key-spend only taproot UTXO, so a
@@ -81,7 +81,7 @@ impl UTxO {
 /// A transaction which we will use to see if we can construct a valid signature
 pub struct UnsignedTx {
     /// utxo
-    pub utxo: UTxO,
+    pub utxo: Utxo,
     /// tx
     pub tx: Transaction,
 }
@@ -94,7 +94,7 @@ impl UnsignedTx {
     /// This will use the provided `aggregate_key` to construct
     /// a [`Transaction`] with a single input and output with value 0.
     pub fn new(signer_public_key: XOnlyPublicKey) -> Self {
-        let utxo = UTxO {
+        let utxo = Utxo {
             outpoint: OutPoint::null(),
             amount: Self::AMOUNT,
             public_key: signer_public_key,
