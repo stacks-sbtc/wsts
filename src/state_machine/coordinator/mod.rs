@@ -639,7 +639,7 @@ pub mod test {
         for coordinator in coordinators.iter_mut() {
             // Process all coordinator messages, but don't bother with propogating these results
             for message in messages {
-                let _ = coordinator.process(&message).unwrap();
+                let _ = coordinator.process(message).unwrap();
             }
         }
         let mut results = vec![];

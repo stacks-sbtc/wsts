@@ -1281,8 +1281,8 @@ pub mod test {
         let mut public_keys: PublicKeys = Default::default();
         let mut key_ids = HashSet::new();
 
-        public_keys.signers.insert(0, public_key.clone());
-        public_keys.key_ids.insert(1, public_key.clone());
+        public_keys.signers.insert(0, public_key);
+        public_keys.key_ids.insert(1, public_key);
 
         key_ids.insert(1);
         public_keys.signer_key_ids.insert(0, key_ids);
@@ -1377,10 +1377,10 @@ pub mod test {
         let public_key2 = ecdsa::PublicKey::new(&private_key2).unwrap();
         let mut public_keys: PublicKeys = Default::default();
 
-        public_keys.signers.insert(0, public_key.clone());
-        public_keys.signers.insert(1, public_key2.clone());
-        public_keys.key_ids.insert(1, public_key.clone());
-        public_keys.key_ids.insert(2, public_key2.clone());
+        public_keys.signers.insert(0, public_key);
+        public_keys.signers.insert(1, public_key2);
+        public_keys.key_ids.insert(1, public_key);
+        public_keys.key_ids.insert(2, public_key2);
 
         let mut key_ids = HashSet::new();
         key_ids.insert(1);
@@ -1429,10 +1429,10 @@ pub mod test {
         let public_key2 = ecdsa::PublicKey::new(&private_key2).unwrap();
         let mut public_keys: PublicKeys = Default::default();
 
-        public_keys.signers.insert(0, public_key.clone());
-        public_keys.signers.insert(1, public_key2.clone());
-        public_keys.key_ids.insert(1, public_key.clone());
-        public_keys.key_ids.insert(2, public_key2.clone());
+        public_keys.signers.insert(0, public_key);
+        public_keys.signers.insert(1, public_key2);
+        public_keys.key_ids.insert(1, public_key);
+        public_keys.key_ids.insert(2, public_key2);
 
         let mut key_ids = HashSet::new();
         key_ids.insert(1);
@@ -1487,8 +1487,8 @@ pub mod test {
         let mut public_keys: PublicKeys = Default::default();
         let mut key_ids = HashSet::new();
 
-        public_keys.signers.insert(0, public_key.clone());
-        public_keys.key_ids.insert(1, public_key.clone());
+        public_keys.signers.insert(0, public_key);
+        public_keys.key_ids.insert(1, public_key);
 
         key_ids.insert(1);
         public_keys.signer_key_ids.insert(0, key_ids);

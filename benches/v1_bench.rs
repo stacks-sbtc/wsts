@@ -45,7 +45,7 @@ pub fn bench_party_sign(c: &mut Criterion) {
     let mut signers = signers[..(K * 3 / 4).try_into().unwrap()].to_vec();
 
     let s = format!("v1 party sign N={} T={} K={}", N, T, K);
-    c.bench_function(&s, |b| b.iter(|| sign(&msg, &mut signers, &mut rng)));
+    c.bench_function(&s, |b| b.iter(|| sign(msg, &mut signers, &mut rng)));
 }
 
 #[allow(non_snake_case)]
@@ -71,11 +71,11 @@ pub fn bench_aggregator_sign(c: &mut Criterion) {
     let mut aggregator = v1::Aggregator::new(N, T);
     aggregator.init(&A).expect("aggregator init failed");
 
-    let (nonces, sig_shares) = sign(&msg, &mut signers, &mut rng);
+    let (nonces, sig_shares) = sign(msg, &mut signers, &mut rng);
 
     let s = format!("v1 group sign N={} T={} K={}", N, T, K);
     c.bench_function(&s, |b| {
-        b.iter(|| aggregator.sign(&msg, &nonces, &sig_shares, &[]))
+        b.iter(|| aggregator.sign(msg, &nonces, &sig_shares, &[]))
     });
 }
 

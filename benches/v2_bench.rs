@@ -37,7 +37,7 @@ pub fn bench_dkg(c: &mut Criterion) {
 pub fn bench_party_sign(c: &mut Criterion) {
     let mut rng = create_rng();
     let msg = "It was many and many a year ago".as_bytes();
-    let party_key_ids = gen_signer_ids(N.try_into().unwrap(), K.try_into().unwrap());
+    let party_key_ids = gen_signer_ids(N, K);
     let mut signers: Vec<v2::Party> = party_key_ids
         .iter()
         .enumerate()
@@ -63,7 +63,7 @@ pub fn bench_party_sign(c: &mut Criterion) {
     let mut signers = signers[..(K * 3 / 4).try_into().unwrap()].to_vec();
 
     let s = format!("v2 party sign N={} T={} K={}", N, T, K);
-    c.bench_function(&s, |b| b.iter(|| sign(&msg, &mut signers, &mut rng)));
+    c.bench_function(&s, |b| b.iter(|| sign(msg, &mut signers, &mut rng)));
 }
 
 #[allow(non_snake_case)]
@@ -98,11 +98,11 @@ pub fn bench_aggregator_sign(c: &mut Criterion) {
 
     aggregator.init(&A).expect("aggregator init failed");
 
-    let (nonces, sig_shares, key_ids) = sign(&msg, &mut signers, &mut rng);
+    let (nonces, sig_shares, key_ids) = sign(msg, &mut signers, &mut rng);
 
     let s = format!("v2 group sign N={} T={} K={}", N, T, K);
     c.bench_function(&s, |b| {
-        b.iter(|| aggregator.sign(&msg, &nonces, &sig_shares, &key_ids))
+        b.iter(|| aggregator.sign(msg, &nonces, &sig_shares, &key_ids))
     });
 }
 

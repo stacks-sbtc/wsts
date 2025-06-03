@@ -2949,7 +2949,7 @@ pub mod test {
         );
 
         // put the malicious signers back in
-        insufficient_signers.extend(malicious.drain(..));
+        insufficient_signers.append(&mut malicious);
 
         // Send the NonceRequest message to all signers and share their responses with the coordinator and signers
         let (outbound_messages, operation_results) = feedback_messages(
