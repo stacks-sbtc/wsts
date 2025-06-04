@@ -1,6 +1,9 @@
 #![deny(missing_docs)]
 #![doc = include_str!("../README.md")]
 
+/// test bitcoin/taproot integration using libbitcoin_consensus
+#[cfg(test)]
+pub mod btc;
 /// Types which are common to both v1 and v2
 #[allow(clippy::op_ref)]
 pub mod common;
