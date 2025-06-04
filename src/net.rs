@@ -145,6 +145,8 @@ pub struct DkgPublicShares {
     pub signer_id: u32,
     /// List of (party_id, commitment)
     pub comms: Vec<(u32, PolyCommitment)>,
+    /// Ephemeral public key for key exchange
+    pub kex_public_key: Point,
 }
 
 impl Signable for DkgPublicShares {
@@ -726,6 +728,7 @@ mod test {
                     poly: vec![],
                 },
             )],
+            kex_public_key: Point::from(Scalar::random(&mut rng)),
         };
         let msg = Message::DkgPublicShares(public_shares.clone());
         let coordinator_packet_dkg_public_shares = Packet {
