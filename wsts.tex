@@ -5,11 +5,30 @@
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{amssymb}
+\usepackage{amsthm}
 \usepackage{mathtools}
 \usepackage[symbol]{footmisc}
 \usepackage{caption}
 
+\usepackage{enumitem}               % In texlive-latex-extra
+\usepackage[mathcal]{eucal}                  % Changes mathcal script
+\usepackage[english]{babel}         % English blindtext
+\usepackage{mathtools}
+\usepackage[symbol]{footmisc}
+% \usepackage{subcaption}
+\usepackage{orcidlink}
+\usepackage{tabularx,booktabs}
+\usepackage[operators, sets]{cryptocode}
 \renewcommand{\thefootnote}{\fnsymbol{footnote}}
+
+\newtheorem{thm}{Theorem}[section]
+\newtheorem{lem}[thm]{Lemma}
+
+\theoremstyle{definition}
+\newtheorem{definition}[thm]{Definition}
+
+\theoremstyle{remark}
+\newtheorem{rem}[thm]{Remark}
 
 \newcommand\Set[2]{\{\,#1\mid#2\,\}}
 \newcommand\underoverset[3]{\underset{#1}{\overset{#2}{#3}}}
