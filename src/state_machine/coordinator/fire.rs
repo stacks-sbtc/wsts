@@ -224,12 +224,11 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         packet: &Packet,
     ) -> Result<(Option<Packet>, Option<OperationResult>), Error> {
         if self.config.verify_packet_sigs {
-            if let Some(coordinator_public_key) = self.coordinator_public_key {
-                if !packet.verify(&self.config.public_keys, &coordinator_public_key) {
-                    return Err(Error::InvalidPacketSignature);
-                }
-            } else {
+            let Some(coordinator_public_key) = self.coordinator_public_key else {
                 return Err(Error::MissingCoordinatorPublicKey);
+            };
+            if !packet.verify(&self.config.public_keys, &coordinator_public_key) {
+                return Err(Error::InvalidPacketSignature);
             }
         }
         loop {
@@ -661,8 +660,13 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             // bad_shares is a map of signer_id to BadPrivateShare
                             for (bad_signer_id, bad_private_share) in bad_shares {
                                 // verify the DH tuple proof first so we know the shared key is correct
-                                let signer_public_key =
-                                    compute::point(&self.config.public_keys.signers[signer_id])?;
+                                let Some(signer_public_dsa_key) =
+                                    self.config.public_keys.signers.get(signer_id)
+                                else {
+                                    warn!("No public key for signer_id {signer_id} DkgEnd");
+                                    continue;
+                                };
+                                let signer_public_key = compute::point(signer_public_dsa_key)?;
 
                                 let Some(bad_signer_ecdsa_key) =
                                     self.config.public_keys.signers.get(bad_signer_id)
