@@ -1,4 +1,3 @@
-use core::num::TryFromIntError;
 use hashbrown::{HashMap, HashSet};
 use std::{collections::BTreeMap, time::Instant};
 use tracing::{debug, error, info, warn};
@@ -660,6 +659,12 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             // bad_shares is a map of signer_id to BadPrivateShare
                             for (bad_signer_id, bad_private_share) in bad_shares {
                                 // verify the DH tuple proof first so we know the shared key is correct
+                                let Some(signer_key_ids) =
+                                    self.config.public_keys.signer_key_ids.get(signer_id)
+                                else {
+                                    warn!("No key IDs for signer_id {signer_id} DkgEnd");
+                                    continue;
+                                };
                                 let Some(signer_public_dsa_key) =
                                     self.config.public_keys.signers.get(signer_id)
                                 else {
@@ -706,8 +711,6 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                         self.malicious_dkg_signer_ids.insert(*signer_id);
                                         continue;
                                     };
-                                    let signer_key_ids =
-                                        &self.config.public_keys.signer_key_ids[signer_id];
 
                                     for (src_party_id, key_shares) in &dkg_private_shares.shares {
                                         let poly = &dkg_public_shares[src_party_id];
@@ -1172,22 +1175,24 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         R
     }
 
-    fn compute_dkg_public_size(&self) -> Result<u32, TryFromIntError> {
+    fn compute_dkg_public_size(&self) -> Result<u32, Error> {
         self.dkg_public_shares
             .keys()
             .flat_map(|signer_id| self.config.public_keys.signer_key_ids.get(signer_id))
             .flatten()
             .count()
             .try_into()
+            .map_err(Error::TryFromInt)
     }
 
-    fn compute_dkg_private_size(&self) -> Result<u32, TryFromIntError> {
+    fn compute_dkg_private_size(&self) -> Result<u32, Error> {
         self.dkg_private_shares
             .keys()
             .flat_map(|signer_id| self.config.public_keys.signer_key_ids.get(signer_id))
             .flatten()
             .count()
             .try_into()
+            .map_err(Error::TryFromInt)
     }
 }
 
