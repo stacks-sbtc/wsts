@@ -712,7 +712,7 @@ The FROST forger $\mathcal{F}^\prime$ is a routine that takes the same inputs as
 
 We must detail the routine that generates a forgery of a signature in our chosen FROST configuration. Luckily, we have routine that forges signatures, namely $\mathcal{F}$. It takes as input the private key shares it controls, private nonces, the public key, an oracle producing valid signatures, and can produce a valid signature for message $m$ of it's choice. It does this using the information under it's control and by interacting with the participant(s) not within its control. Since $\mathcal{F}^\prime$ has access to the same information (by Lemma~\ref{lemma:wsts-frost-equivalence}) and interacts with the participant(s) not within its control in the same way (since WSTS is a derivative of FROST), it can carry out the same procedure as $\mathcal{F}$ to forge a signature.
 
-Thus we have constructed a FROST forger that $(\tau, \epsilon)$-breaks the unforgeability property of FROST. This violates Theorem \cite[\S A.2]{frost:2020}, yielding the desired contradiction.
+Thus we have constructed a FROST forger that $(\tau, \epsilon)$-breaks the unforgeability property of FROST. This violates Theorem \cite[\S A.2]{frost}, yielding the desired contradiction.
 \end{proof}
 
 \end{document}
