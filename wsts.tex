@@ -201,7 +201,7 @@ Like many DKG schemes, FROST employs the technique of polynomial interpolation. 
 
 Remember that in polynomial interpolation, you need $k+1$ points to interpolate a degree $k$ polynomial.  FROST specifies a threshold $T$, which is the number of signers necessary to sign a message.  Thus we will need a group polynomial of degree $T-1$ so that any group of $T$ signers will be able to interpolate the key, and thereby sign.  This group polynomial $f$ will be the sum of the party polynomials $f_i$; the group private key $x$ will be $f(0)$, and the group public key $Y$ will be $P(0)$, where $P = f \cdot G$.
 
-First, each party is given a sequential ID $i \in [1, N]$, which will be used both to identify it and as an element in the underlying math.  Next, each party $i$ constructs a random private scalar polynomial $f_i$ of degree $T-1$, where the coefficients are scalars sampled from $a_{ij} \sample \ZZ_p$, $j \in [t]$.  A public DKG share is constructed from $f_i$ by multiplying each coefficient by a generator $G$.  The ID $i$ and public polynomial $P_i$ are then shared to all other parties.
+First, each party is given a sequential ID $i \in [1, N]$, which will be used both for identification and as an element in the underlying math.  Next, each party $i$ constructs a random private scalar polynomial $f_i$ of degree $T-1$, where the coefficients $a_{ij}$ are scalars sampled as such: $a_{ij} \sample \ZZ_p$, $j \in [T]$.  A public DKG share is constructed from $f_i$ by multiplying each coefficient by a generator $G$.  The ID $i$ and public polynomial $P_i$ are then shared to all other parties.
 
 \begin{align}\label{equation:wsts-polynomial}
 f_i(x) = \sum_{j=0}^{t-1} a_{ij}x^j, \qquad P_i(x) = f_{i}(x) \cdot G.
