@@ -1,8 +1,8 @@
 use std::{env, time};
 
-use wsts::{common::test_helpers::gen_signer_ids, traits::Aggregator, util::create_rng, v2};
 #[cfg(feature = "with_v1")]
 use wsts::v1;
+use wsts::{common::test_helpers::gen_signer_ids, traits::Aggregator, util::create_rng, v2};
 
 #[allow(non_snake_case)]
 fn main() {
