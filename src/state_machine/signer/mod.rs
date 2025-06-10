@@ -1133,6 +1133,7 @@ pub mod test {
         bad_config::<v1::Signer>();
     }
 
+    #[allow(dead_code)]
     fn bad_config<SignerType: SignerTrait>() {
         let mut rng = create_rng();
 

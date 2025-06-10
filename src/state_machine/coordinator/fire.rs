@@ -1475,6 +1475,7 @@ pub mod test {
     }
 
     /// test basic insertion and detection of duplicates for DkgPublicShares
+    #[allow(dead_code)]
     fn dkg_public_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
         let ctx = 0u64.to_be_bytes();
         let mut rng = create_rng();
@@ -1668,6 +1669,7 @@ pub mod test {
     }
 
     /// test basic insertion and detection of duplicates for SignatureShareResponse
+    #[allow(dead_code)]
     fn sig_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
         let mut rng = create_rng();
         let (coordinators, _) = setup::<FireCoordinator<Aggregator>, Signer>(2, 1);
