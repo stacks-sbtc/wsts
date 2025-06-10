@@ -26,6 +26,7 @@ pub mod traits;
 /// Utilities for hashing and encryption
 pub mod util;
 /// Version 1 of WSTS, which encapsulates a number of parties using vanilla FROST
+#[cfg(feature = "with_v1")]
 #[allow(clippy::op_ref)]
 pub mod v1;
 /// Version 1 of WSTS, which encapsulates a number of parties using vanilla FROST

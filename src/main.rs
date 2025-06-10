@@ -1,6 +1,8 @@
 use std::{env, time};
 
-use wsts::{common::test_helpers::gen_signer_ids, traits::Aggregator, util::create_rng, v1, v2};
+use wsts::{common::test_helpers::gen_signer_ids, traits::Aggregator, util::create_rng, v2};
+#[cfg(feature = "with_v1")]
+use wsts::v1;
 
 #[allow(non_snake_case)]
 fn main() {
@@ -27,6 +29,7 @@ fn main() {
     println!("With N={N} T={T} K={K}:");
 
     // v1
+    #[cfg(feature = "with_v1")]
     {
         let signer_ids = gen_signer_ids(N, K);
         let mut signers: Vec<v1::Signer> = signer_ids
