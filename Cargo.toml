@@ -41,6 +41,7 @@ rand_chacha = "0.3.1"
 
 [[bench]]
 name = "v1_bench"
+required-features = ["with_v1"]
 harness = false
 
 [[bench]]
