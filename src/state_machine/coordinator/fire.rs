@@ -717,10 +717,50 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 }
                             }
                         }
-                        DkgFailure::MissingPublicShares(_) => {
+                        DkgFailure::MissingPublicShares(missing_signer_ids) => {
+                            for id in missing_signer_ids {
+                                if let Some(shares) = self.dkg_public_shares.get(id) {
+                                    if shares.comms.is_empty() {
+                                        self.malicious_dkg_signer_ids.insert(*id);
+                                    } else {
+                                        // signer_id reported missing shares but they were present
+                                        self.malicious_dkg_signer_ids.insert(*signer_id);
+                                    }
+                                } else {
+                                    self.malicious_dkg_signer_ids.insert(*id);
+                                }
+                            }
                             dkg_failures.insert(*signer_id, dkg_failure.clone());
                         }
-                        DkgFailure::MissingPrivateShares(_) => {
+                        DkgFailure::MissingPrivateShares(missing_signer_ids) => {
+                            for id in missing_signer_ids {
+                                if let Some(shares) = self.dkg_private_shares.get(id) {
+                                    if shares.shares.is_empty() {
+                                        self.malicious_dkg_signer_ids.insert(*id);
+                                    } else if let Some(signer_key_ids) =
+                                        self.config.signer_key_ids.get(signer_id)
+                                    {
+                                        let mut missing_private_shares = false;
+                                        for dst_key_id in signer_key_ids {
+                                            for (_src_party_id, party_shares) in &shares.shares {
+                                                if party_shares.get(dst_key_id).is_none() {
+                                                    missing_private_shares = true;
+                                                }
+                                            }
+                                        }
+                                        if missing_private_shares {
+                                            self.malicious_dkg_signer_ids.insert(*id);
+                                        } else {
+                                            // signer_id reported missing shares but they were present
+                                            self.malicious_dkg_signer_ids.insert(*signer_id);
+                                        }
+                                    } else {
+                                        error!("Got MissingPrivateShares from {signer_id} but we don't have key_ids for them");
+                                    }
+                                } else {
+                                    self.malicious_dkg_signer_ids.insert(*id);
+                                }
+                            }
                             dkg_failures.insert(*signer_id, dkg_failure.clone());
                         }
                     }
@@ -1984,6 +2024,209 @@ pub mod test {
             State::DkgPrivateGather,
         );
         (minimum_coordinators, minimum_signers)
+    }
+
+    #[test]
+    fn malicious_missing_public_shares_dkg_v1() {
+        malicious_missing_public_shares_dkg::<v1::Aggregator, v1::Signer>(5, 2);
+    }
+
+    #[test]
+    fn malicious_missing_public_shares_dkg_v2() {
+        malicious_missing_public_shares_dkg::<v2::Aggregator, v2::Signer>(5, 2);
+    }
+
+    fn malicious_missing_public_shares_dkg<Aggregator: AggregatorTrait, SignerType: SignerTrait>(
+        num_signers: u32,
+        keys_per_signer: u32,
+    ) {
+        let (mut coordinators, mut signers) =
+            setup::<FireCoordinator<Aggregator>, SignerType>(num_signers, keys_per_signer);
+
+        // We have started a dkg round
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
+        assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
+        assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
+
+        // Send the DkgBegin message to all signers and share their responses with the coordinators and signers, but mutate one signer's DkgPublicShares so it is marked malicious
+        let (outbound_messages, operation_results) = feedback_mutated_messages(
+            &mut coordinators,
+            &mut signers,
+            &[message],
+            |signer, msgs| {
+                if signer.signer_id != 0 {
+                    return msgs;
+                }
+                msgs.iter()
+                    .map(|packet| {
+                        let Message::DkgPublicShares(shares) = &packet.msg else {
+                            return packet.clone();
+                        };
+                        // clear the comms
+                        Packet {
+                            msg: Message::DkgPublicShares(DkgPublicShares {
+                                dkg_id: shares.dkg_id,
+                                signer_id: shares.signer_id,
+                                comms: Vec::new(),
+                            }),
+                            sig: vec![],
+                        }
+                    })
+                    .collect()
+            },
+        );
+
+        assert!(operation_results.is_empty());
+        for coordinator in &coordinators {
+            assert_eq!(coordinator.state, State::DkgPrivateGather);
+        }
+
+        assert_eq!(outbound_messages.len(), 1);
+        assert!(
+            matches!(outbound_messages[0].msg, Message::DkgPrivateBegin(_)),
+            "Expected DkgPrivateBegin message"
+        );
+
+        // Send the DkgPrivateBegin message to all signers and gather responses by sharing with all other signers and coordinators
+        let (outbound_messages, operation_results) =
+            feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
+
+        assert!(operation_results.is_empty());
+        assert_eq!(outbound_messages.len(), 1);
+        assert!(
+            matches!(outbound_messages[0].msg, Message::DkgEndBegin(_)),
+            "Expected DkgEndBegin message"
+        );
+
+        // Send the DkgEndBegin message to all signers and share their responses with the coordinators and signers
+        let (outbound_messages, operation_results) =
+            feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
+        assert!(outbound_messages.is_empty());
+        assert_eq!(operation_results.len(), 1);
+        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map)) = &operation_results[0]
+        else {
+            panic!("Expected OperationResult::DkgError(DkgError::DkgEndFailure");
+        };
+
+        for (_signer_id, dkg_failure) in failure_map {
+            let DkgFailure::MissingPublicShares(bad_share_map) = dkg_failure else {
+                panic!("Expected DkgFailure::MissingPublicShares");
+            };
+            for bad_signer_id in bad_share_map {
+                assert_eq!(*bad_signer_id, 0u32);
+            }
+        }
+
+        for coordinator in &coordinators {
+            assert!(coordinator.malicious_dkg_signer_ids.contains(&0u32));
+        }
+    }
+
+    #[test]
+    fn malicious_missing_private_shares_dkg_v1() {
+        malicious_missing_private_shares_dkg::<v1::Aggregator, v1::Signer>(5, 2);
+    }
+
+    #[test]
+    fn malicious_missing_private_shares_dkg_v2() {
+        malicious_missing_private_shares_dkg::<v2::Aggregator, v2::Signer>(5, 2);
+    }
+
+    fn malicious_missing_private_shares_dkg<
+        Aggregator: AggregatorTrait,
+        SignerType: SignerTrait,
+    >(
+        num_signers: u32,
+        keys_per_signer: u32,
+    ) {
+        let (mut coordinators, mut signers) =
+            setup::<FireCoordinator<Aggregator>, SignerType>(num_signers, keys_per_signer);
+
+        // We have started a dkg round
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_dkg_round(None)
+            .unwrap();
+        assert!(coordinators.first().unwrap().aggregate_public_key.is_none());
+        assert_eq!(coordinators.first().unwrap().state, State::DkgPublicGather);
+
+        // Send the DkgBegin message to all signers and gather responses by sharing with all other signers and coordinators
+        let (outbound_messages, operation_results) =
+            feedback_messages(&mut coordinators, &mut signers, &[message]);
+
+        assert_eq!(outbound_messages.len(), 1);
+        assert!(
+            matches!(outbound_messages[0].msg, Message::DkgPrivateBegin(_)),
+            "Expected DkgPrivateBegin message"
+        );
+
+        assert!(operation_results.is_empty());
+        for coordinator in &coordinators {
+            assert_eq!(coordinator.state, State::DkgPrivateGather);
+        }
+
+        // Send the DkgPrivateBegin message to all signers and share their responses with the coordinators and signers, but mutate one signer's DkgPublicShares so it is marked malicious
+        let (outbound_messages, operation_results) = feedback_mutated_messages(
+            &mut coordinators,
+            &mut signers,
+            &outbound_messages,
+            |signer, msgs| {
+                if signer.signer_id != 0 {
+                    return msgs;
+                }
+                msgs.iter()
+                    .map(|packet| {
+                        let Message::DkgPrivateShares(shares) = &packet.msg else {
+                            return packet.clone();
+                        };
+                        // clear the shares
+                        Packet {
+                            msg: Message::DkgPrivateShares(DkgPrivateShares {
+                                dkg_id: shares.dkg_id,
+                                signer_id: shares.signer_id,
+                                shares: Vec::new(),
+                            }),
+                            sig: vec![],
+                        }
+                    })
+                    .collect()
+            },
+        );
+
+        assert!(operation_results.is_empty());
+        assert_eq!(outbound_messages.len(), 1);
+        assert!(
+            matches!(outbound_messages[0].msg, Message::DkgEndBegin(_)),
+            "Expected DkgEndBegin message"
+        );
+
+        // Send the DkgEndBegin message to all signers and share their responses with the coordinators and signers
+        let (outbound_messages, operation_results) =
+            feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
+        assert!(outbound_messages.is_empty());
+        assert_eq!(operation_results.len(), 1);
+        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map)) = &operation_results[0]
+        else {
+            panic!("Expected OperationResult::DkgError(DkgError::DkgEndFailure");
+        };
+
+        for (_signer_id, dkg_failure) in failure_map {
+            let DkgFailure::MissingPrivateShares(bad_share_map) = dkg_failure else {
+                panic!("Expected DkgFailure::MissingPrivateShares");
+            };
+            for bad_signer_id in bad_share_map {
+                assert_eq!(*bad_signer_id, 0u32);
+            }
+        }
+
+        for coordinator in &coordinators {
+            assert!(coordinator.malicious_dkg_signer_ids.contains(&0u32));
+        }
     }
 
     #[test]
