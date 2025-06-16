@@ -58,6 +58,13 @@ pub struct Nonce {
     pub e: Scalar,
 }
 
+impl Drop for Nonce {
+    fn drop(&mut self) {
+        self.d.set_zero();
+        self.e.set_zero();
+    }
+}
+
 impl fmt::Debug for Nonce {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Nonce").finish_non_exhaustive()
