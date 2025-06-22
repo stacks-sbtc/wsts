@@ -381,6 +381,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         self.invalid_private_shares.clear();
         self.public_nonces.clear();
         self.signer.reset_polys(rng);
+        self.signer.gen_nonces(&self.network_private_key, rng);
         self.dkg_public_shares.clear();
         self.dkg_private_shares.clear();
         self.dkg_private_begin_msg = None;
@@ -452,6 +453,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
     /// DKG is done so compute secrets
     pub fn dkg_ended<R: RngCore + CryptoRng>(&mut self, rng: &mut R) -> Result<Message, Error> {
         if !self.can_dkg_end() {
+            self.reset(self.dkg_id, rng);
             return Ok(Message::DkgEnd(DkgEnd {
                 dkg_id: self.dkg_id,
                 signer_id: self.signer_id,
@@ -467,6 +469,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
 
         let Some(dkg_end_begin) = &self.dkg_end_begin_msg else {
             // no cached DkgEndBegin message
+            self.reset(self.dkg_id, rng);
             return Ok(Message::DkgEnd(DkgEnd {
                 dkg_id: self.dkg_id,
                 signer_id: self.signer_id,
@@ -490,6 +493,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         }
 
         if num_dkg_keys < self.dkg_threshold {
+            self.reset(self.dkg_id, rng);
             return Ok(Message::DkgEnd(DkgEnd {
                 dkg_id: self.dkg_id,
                 signer_id: self.signer_id,
@@ -532,6 +536,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         }
 
         if !missing_public_shares.is_empty() {
+            self.reset(self.dkg_id, rng);
             return Ok(Message::DkgEnd(DkgEnd {
                 dkg_id: self.dkg_id,
                 signer_id: self.signer_id,
@@ -540,6 +545,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         }
 
         if !bad_public_shares.is_empty() {
+            self.reset(self.dkg_id, rng);
             return Ok(Message::DkgEnd(DkgEnd {
                 dkg_id: self.dkg_id,
                 signer_id: self.signer_id,
@@ -548,6 +554,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         }
 
         if !missing_private_shares.is_empty() {
+            self.reset(self.dkg_id, rng);
             return Ok(Message::DkgEnd(DkgEnd {
                 dkg_id: self.dkg_id,
                 signer_id: self.signer_id,
@@ -615,6 +622,14 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             "sending DkgEnd"
         );
 
+        for (_, dps) in self.dkg_public_shares.iter_mut() {
+            for (_, comm) in dps.comms.iter_mut() {
+                comm.zeroize();
+            }
+        }
+        let dkg_public_shares = self.dkg_public_shares.clone();
+        self.reset(self.dkg_id, rng);
+        self.dkg_public_shares = dkg_public_shares;
         let dkg_end = Message::DkgEnd(dkg_end);
         Ok(dkg_end)
     }
@@ -766,7 +781,8 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
                 SignatureType::Frost => self.signer.sign(msg, &signer_ids, &key_ids, &nonces),
             };
 
-            self.signer.gen_nonces(&self.network_private_key, rng);
+            // delete sensitive values to prevent protocol attacks
+            self.reset(self.dkg_id, rng);
 
             let response = SignatureShareResponse {
                 dkg_id: sign_request.dkg_id,
