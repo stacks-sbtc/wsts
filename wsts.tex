@@ -618,56 +618,6 @@ where $S$ is the signing set, $d_i$ and $e_i$ are private nonces, $K_i$ is the k
 where we assumed WLOG that $K_i = \{ i \} \cup K_i^{\prime}$ with $K_i^\prime \subset [n + 1, \kappa]$. Since the signature \eqref{equation:signature-wsts-appendix} is identical to the one generated in WSTS, \eqref{equation:wsts-signature-definition}, the proof is complete.
 \end{proof}
 
-%%
-% \begin{figure}[!ht]
-% \centering
-%     \begin{tikzpicture}[remember picture, node distance=3cm,
-%       inner/.style={circle,solid,draw=blue!50,thick,inner sep=1pt},
-%       outer/.style={circle,dashed,thick,draw=black,inner sep=2pt}
-%       ]
-%       \node[inner,draw=blue] (E1) at (0.0, 2.0) {};
-
-%       \node[] (E2) at (1.4, 1.5) {
-%         \begin{tikzpicture}[node distance=0.5cm]
-%           \node [inner,draw=blue] (bi) {};
-%           \node [inner,draw=blue,below left of=bi] (biii) {};
-%           \node [inner,draw=blue,below of=biii] (bii) {};
-%           % \draw[inner,red,thick] (bi) -- (bii) -- (biii) -- (bi);
-%         \end{tikzpicture}
-%       };
-%       \node[outer,draw=black] (E3) at (-0.4, 0.4) {
-%         \begin{tikzpicture}[node distance=0.25cm]
-%           \node [inner,draw=blue] (ci)  {};
-%           \node [inner,draw=gray,below right of=ci] (cii) {};
-%           \node [inner,draw=gray,below left of=cii] (ciii) {};
-%           \node [inner,draw=gray,left of=ciii] (civ) {};
-%           \node [inner,draw=gray,above of=civ] (cv) {};
-%         \end{tikzpicture}
-%       };
-%       \node[] (E4) at (-1.5, 1.6) {
-%         \begin{tikzpicture}[node distance=0.5cm]
-%           \node [inner,draw=blue] (di)  {};
-%           \node [inner,draw=blue,below of=di] (dii) {};
-%           \node [inner,draw=blue,below left of=dii] (diii) {};
-%           % \draw[inner,red,thick] (di) -- (dii) -- (diii) -- (di) -- (diii);
-%         \end{tikzpicture}
-%       };
-%       % \draw[black,thick] (E1) -- (E2) -- (E3) -- (E4) -- (E1);
-%       % \draw[black,thick,->] (E2) -- (E4);
-%       % \draw[black,thick,->] (E1) -- (E3);
-%     \end{tikzpicture}
-% \caption{FROST with Full participants in blue and dummy participants in grey}\label{after clustering}
-% \end{figure}
-%%
-
-% \begin{lem}[WSTS information exchange]
-%     Let $\mathfrak{W}$ be a valid configuration for $n$ participants in WSTS and key IDs $\{ K_i \}_{i \in [1,n]}$ and let $\mathfrak{F}$ be the analogous FROST configuration from Lemma~\ref{lemma:wsts-frost-equivalence}.
-% \end{lem}
-
-% \begin{proof}
-    
-% \end{proof}
-
 \begin{rem}
     We can place further restrictions on our dummy participants. Suppose dummy participants:
     \begin{enumerate}
