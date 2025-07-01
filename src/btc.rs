@@ -211,10 +211,7 @@ mod test {
     }
 
     fn verify_sig(raw_merkle_root: Option<[u8; 32]>) {
-        let merkle_root = match raw_merkle_root {
-            Some(hash) => Some(TapNodeHash::assume_hidden(hash)),
-            None => None,
-        };
+        let merkle_root = raw_merkle_root.map(|hash| TapNodeHash::assume_hidden(hash));
         let secp = Secp256k1::new();
 
         // Generate a key pair which will serve as the signers' aggregate key.
