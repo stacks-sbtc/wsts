@@ -20,7 +20,7 @@ pub fn bench_dkg(c: &mut Criterion) {
         .map(|(id, ids)| v1::Signer::new(id.try_into().unwrap(), ids, N, T, &mut rng))
         .collect();
 
-    let s = format!("v1 dkg N={} T={} K={}", N, T, K);
+    let s = format!("v1 dkg N={N} T={T} K={K}");
     c.bench_function(&s, |b| b.iter(|| dkg(&mut signers, &mut rng)));
 }
 
@@ -38,13 +38,13 @@ pub fn bench_party_sign(c: &mut Criterion) {
     let _A = match dkg(&mut signers, &mut rng) {
         Ok(A) => A,
         Err(secret_errors) => {
-            panic!("Got secret errors from DKG: {:?}", secret_errors);
+            panic!("Got secret errors from DKG: {secret_errors:?}");
         }
     };
 
     let mut signers = signers[..(K * 3 / 4).try_into().unwrap()].to_vec();
 
-    let s = format!("v1 party sign N={} T={} K={}", N, T, K);
+    let s = format!("v1 party sign N={N} T={T} K={K}");
     c.bench_function(&s, |b| b.iter(|| sign(msg, &mut signers, &mut rng)));
 }
 
@@ -62,7 +62,7 @@ pub fn bench_aggregator_sign(c: &mut Criterion) {
     let A = match dkg(&mut signers, &mut rng) {
         Ok(A) => A,
         Err(secret_errors) => {
-            panic!("Got secret errors from DKG: {:?}", secret_errors);
+            panic!("Got secret errors from DKG: {secret_errors:?}");
         }
     };
 
@@ -73,7 +73,7 @@ pub fn bench_aggregator_sign(c: &mut Criterion) {
 
     let (nonces, sig_shares) = sign(msg, &mut signers, &mut rng);
 
-    let s = format!("v1 group sign N={} T={} K={}", N, T, K);
+    let s = format!("v1 group sign N={N} T={T} K={K}");
     c.bench_function(&s, |b| {
         b.iter(|| aggregator.sign(msg, &nonces, &sig_shares, &[]))
     });

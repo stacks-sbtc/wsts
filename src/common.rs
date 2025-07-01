@@ -43,7 +43,7 @@ impl Display for PolyCommitment {
     fn fmt(&self, f: &mut Formatter<'_>) -> FmtResult {
         write!(f, "{}", self.id.id)?;
         for p in &self.poly {
-            write!(f, " {}", p)?;
+            write!(f, " {p}")?;
         }
         Ok(())
     }

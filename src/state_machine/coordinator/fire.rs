@@ -3307,8 +3307,7 @@ pub mod test {
         }
         if let Some(failure) = failure_map.get(&0) {
             panic!(
-                "Coordinator should not have passed along incorrect failure {:?} from signer 0",
-                failure
+                "Coordinator should not have passed along incorrect failure {failure:?} from signer 0",
             );
         }
     }
