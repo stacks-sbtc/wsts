@@ -207,7 +207,7 @@ mod test {
 
     #[test]
     fn verify_sig_some_merkle_root() {
-        //verify_sig(Some(None));
+        verify_sig(Some([0u8; 32]));
     }
 
     fn verify_sig(raw_merkle_root: Option<[u8; 32]>) {
@@ -220,7 +220,7 @@ mod test {
         // Generate a key pair which will serve as the signers' aggregate key.
         let secret_key = secp256k1::SecretKey::new(&mut OsRng);
         let keypair = secp256k1::Keypair::from_secret_key(&secp, &secret_key);
-        let tweaked = keypair.tap_tweak(&secp, None);
+        let tweaked = keypair.tap_tweak(&secp, merkle_root);
         let (aggregate_key, _) = keypair.x_only_public_key();
 
         // Create a new transaction using the aggregate key.
@@ -282,7 +282,7 @@ mod test {
             .expect_err("signature verification should have failed");
 
         // [5] Same as [4], but using its tweaked key.
-        let tweaked = keypair.tap_tweak(&secp, None);
+        let tweaked = keypair.tap_tweak(&secp, merkle_root);
         let schnorr_sig = secp.sign_schnorr(&message, &tweaked.to_keypair());
         let taproot_sig = bitcoin::taproot::Signature {
             signature: schnorr_sig,
