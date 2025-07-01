@@ -6,8 +6,8 @@ use bitcoin::{
     sighash::{Prevouts, SighashCache},
     taproot::Signature,
     transaction::Version,
-    Amount, OutPoint, ScriptBuf, Sequence, TapSighash, TapSighashType, Transaction, TxIn, TxOut,
-    Witness,
+    Amount, OutPoint, ScriptBuf, Sequence, TapNodeHash, TapSighash, TapSighashType, Transaction,
+    TxIn, TxOut, Witness,
 };
 
 use std::sync::LazyLock;
@@ -59,8 +59,12 @@ impl Utxo {
     }
 
     /// Construct the UTXO associated with this outpoint.
-    fn as_tx_output<C: Verification>(&self, secp: &Secp256k1<C>) -> TxOut {
-        Self::new_tx_output(secp, self.public_key, self.amount)
+    fn as_tx_output<C: Verification>(
+        &self,
+        secp: &Secp256k1<C>,
+        merkle_root: Option<TapNodeHash>,
+    ) -> TxOut {
+        Self::new_tx_output(secp, self.public_key, self.amount, merkle_root)
     }
 
     /// Construct the new signers' UTXO
@@ -70,10 +74,11 @@ impl Utxo {
         secp: &Secp256k1<C>,
         public_key: XOnlyPublicKey,
         sats: u64,
+        merkle_root: Option<TapNodeHash>,
     ) -> TxOut {
         TxOut {
             value: Amount::from_sat(sats),
-            script_pubkey: ScriptBuf::new_p2tr(secp, public_key, None),
+            script_pubkey: ScriptBuf::new_p2tr(secp, public_key, merkle_root),
         }
     }
 }
@@ -118,8 +123,9 @@ impl UnsignedTx {
     pub fn compute_sighash<C: Verification>(
         &self,
         secp: &Secp256k1<C>,
+        merkle_root: Option<TapNodeHash>,
     ) -> Result<TapSighash, Error> {
-        let prevouts = [self.utxo.as_tx_output(secp)];
+        let prevouts = [self.utxo.as_tx_output(secp, merkle_root)];
         let mut sighasher = SighashCache::new(&self.tx);
 
         sighasher
@@ -135,6 +141,7 @@ impl UnsignedTx {
         &self,
         secp: &Secp256k1<C>,
         signature: &Signature,
+        merkle_root: Option<TapNodeHash>,
     ) -> Result<(), Error> {
         // Create a copy of the transaction so that we don't modify the
         // transaction stored in the struct.
@@ -150,7 +157,7 @@ impl UnsignedTx {
             .map_err(Error::BitcoinIo)?;
 
         // Get the prevout for the signers' UTXO.
-        let prevout = self.utxo.as_tx_output(secp);
+        let prevout = self.utxo.as_tx_output(secp, merkle_root);
         let prevout_script_bytes = prevout.script_pubkey.as_script().as_bytes();
 
         // Create the bitcoinconsensus UTXO object.
@@ -200,24 +207,24 @@ mod test {
 
     #[test]
     fn verify_sig_some_merkle_root() {
-        // XXX key spends with a merkle root are not working
-        //verify_sig(Some([0u8; 32]))
+        verify_sig(Some([0u8; 32]));
     }
 
-    fn verify_sig(merkle_root: Option<[u8; 32]>) {
+    fn verify_sig(raw_merkle_root: Option<[u8; 32]>) {
+        let merkle_root = raw_merkle_root.map(TapNodeHash::assume_hidden);
         let secp = Secp256k1::new();
 
         // Generate a key pair which will serve as the signers' aggregate key.
         let secret_key = secp256k1::SecretKey::new(&mut OsRng);
         let keypair = secp256k1::Keypair::from_secret_key(&secp, &secret_key);
-        let tweaked = keypair.tap_tweak(&secp, None);
+        let tweaked = keypair.tap_tweak(&secp, merkle_root);
         let (aggregate_key, _) = keypair.x_only_public_key();
 
         // Create a new transaction using the aggregate key.
         let unsigned = UnsignedTx::new(aggregate_key);
 
         let tapsig = unsigned
-            .compute_sighash(&secp)
+            .compute_sighash(&secp, merkle_root)
             .expect("failed to compute taproot sighash");
 
         // Sign the taproot sighash.
@@ -233,7 +240,7 @@ mod test {
             sighash_type: TapSighashType::All,
         };
         unsigned
-            .verify_signature(&secp, &taproot_sig)
+            .verify_signature(&secp, &taproot_sig, merkle_root)
             .expect("signature verification failed");
 
         // [2] Verify the correct signature, but with a different sighash type,
@@ -243,7 +250,7 @@ mod test {
             sighash_type: TapSighashType::None,
         };
         unsigned
-            .verify_signature(&secp, &taproot_sig)
+            .verify_signature(&secp, &taproot_sig, merkle_root)
             .expect_err("signature verification should have failed");
 
         // [3] Verify an incorrect signature with the correct sighash type,
@@ -255,7 +262,7 @@ mod test {
             sighash_type: TapSighashType::All,
         };
         unsigned
-            .verify_signature(&secp, &taproot_sig)
+            .verify_signature(&secp, &taproot_sig, merkle_root)
             .expect_err("signature verification should have failed");
 
         // [4] Verify an incorrect signature with the correct sighash type, which
@@ -268,18 +275,18 @@ mod test {
             sighash_type: TapSighashType::All,
         };
         unsigned
-            .verify_signature(&secp, &taproot_sig)
+            .verify_signature(&secp, &taproot_sig, merkle_root)
             .expect_err("signature verification should have failed");
 
         // [5] Same as [4], but using its tweaked key.
-        let tweaked = keypair.tap_tweak(&secp, None);
+        let tweaked = keypair.tap_tweak(&secp, merkle_root);
         let schnorr_sig = secp.sign_schnorr(&message, &tweaked.to_keypair());
         let taproot_sig = bitcoin::taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
         unsigned
-            .verify_signature(&secp, &taproot_sig)
+            .verify_signature(&secp, &taproot_sig, merkle_root)
             .expect_err("signature verification should have failed");
 
         // now test a WSTS signature
@@ -324,7 +331,7 @@ mod test {
             .collect::<Vec<u32>>();
         let mut sig_agg = v2::Aggregator::new(num_keys, threshold);
         sig_agg.init(&polys).expect("aggregator init failed");
-        let tweaked_public_key = compute::tweaked_public_key(&sig_agg.poly[0], merkle_root);
+        let tweaked_public_key = compute::tweaked_public_key(&sig_agg.poly[0], raw_merkle_root);
         // taproot code within both wsts and libsecp256k1 will take care of tweaking the key
         let aggregate_key = XOnlyPublicKey::from_slice(&sig_agg.poly[0].x().to_bytes())
             .expect("failed to make XOnlyPublicKey");
@@ -333,14 +340,15 @@ mod test {
         let unsigned = UnsignedTx::new(aggregate_key);
 
         let tapsig = unsigned
-            .compute_sighash(&secp)
+            .compute_sighash(&secp, merkle_root)
             .expect("failed to compute taproot sighash");
 
         // Sign the taproot sighash.
         let msg: &[u8] = tapsig.as_ref();
         let (nonces, sig_shares) =
-            test_helpers::sign(msg, &mut signing_set, &mut OsRng, merkle_root);
-        let proof = match sig_agg.sign_taproot(msg, &nonces, &sig_shares, &key_ids, merkle_root) {
+            test_helpers::sign(msg, &mut signing_set, &mut OsRng, raw_merkle_root);
+        let proof = match sig_agg.sign_taproot(msg, &nonces, &sig_shares, &key_ids, raw_merkle_root)
+        {
             Err(e) => panic!("Aggregator sign failed: {e:?}"),
             Ok(proof) => proof,
         };
@@ -359,7 +367,7 @@ mod test {
             sighash_type: TapSighashType::All,
         };
         unsigned
-            .verify_signature(&secp, &taproot_sig)
+            .verify_signature(&secp, &taproot_sig, merkle_root)
             .expect("signature verification failed");
 
         // [2] Verify the correct signature, but with a different sighash type,
@@ -369,7 +377,7 @@ mod test {
             sighash_type: TapSighashType::None,
         };
         unsigned
-            .verify_signature(&secp, &taproot_sig)
+            .verify_signature(&secp, &taproot_sig, merkle_root)
             .expect_err("signature verification should have failed");
     }
 }
