@@ -198,7 +198,13 @@ mod test {
         v2,
     };
 
-    use bitcoin::{blockdata::script::Builder, opcodes::all::*};
+    use bitcoin::{
+        blockdata::{
+            locktime::absolute,
+            script::{Builder, PushBytesBuf},
+        },
+        opcodes::all::*,
+    };
     use rand_core::OsRng;
 
     #[test]
@@ -243,23 +249,47 @@ mod test {
             .collect::<Vec<u32>>();
         let mut sig_agg = v2::Aggregator::new(num_keys, threshold);
         sig_agg.init(&polys).expect("aggregator init failed");
-        let public_key = sig_agg.poly[0].clone();
-        let public_key_bytes = public_key.x().to_bytes();
+        let wsts_public_key = sig_agg.poly[0].clone();
+        let wsts_public_key_bytes = wsts_public_key.x().to_bytes();
 
         // the sBTC accept script must be of the form
         //
         //     <sbtc_payload> DROP <signers_pubkey> CHECKSIGVERIFY
         //
         // with 160-bytes of <sbtc_payload>
+
+        let sbtc_payload = [255u8; 160];
+        let mut push_bytes = PushBytesBuf::new();
+        push_bytes
+            .push(sbtc_payload.len().try_into().unwrap())
+            .unwrap();
+        push_bytes.extend_from_slice(&sbtc_payload).unwrap();
+
         let accept_script = Builder::new()
-            //.push_slice(&[0u8; 160])
-            //.push_opcode(OP_DROP)
-            .push_slice(public_key_bytes)
+            .push_slice(push_bytes)
+            .push_opcode(OP_DROP)
+            .push_slice(wsts_public_key_bytes)
             .push_opcode(OP_CHECKSIGVERIFY);
+
+        println!("Accept script {accept_script}");
+
+        // Generate keys for the depositor
+        let secp = Secp256k1::new();
+        let depositor_secret_key = secp256k1::SecretKey::new(&mut OsRng);
+        let depositor_keypair = secp256k1::Keypair::from_secret_key(&secp, &depositor_secret_key);
+        let (depositor_public_key, _) = depositor_keypair.x_only_public_key();
 
         // the reject script must be of the form
         //
         //     <lock_time> CHECKSEQUENCEVERIFY <reclaim script>
+
+        let reject_script = Builder::new()
+            .push_lock_time(absolute::LockTime::ZERO)
+            .push_opcode(OP_CSV)
+            .push_x_only_key(&depositor_public_key)
+            .push_opcode(OP_CHECKSIGVERIFY);
+
+        println!("Reject script {reject_script}");
     }
 
     #[test]
