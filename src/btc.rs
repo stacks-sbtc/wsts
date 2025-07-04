@@ -198,7 +198,69 @@ mod test {
         v2,
     };
 
+    use bitcoin::{blockdata::script::Builder, opcodes::all::*};
     use rand_core::OsRng;
+
+    #[test]
+    fn verify_sig_tapscript() {
+        // Generate a DKG aggregate key.
+        let num_keys: u32 = 10;
+        let num_parties: u32 = 4;
+        let threshold: u32 = 7;
+        let signer_ids: Vec<Vec<u32>> = [
+            [1, 2, 3].to_vec(),
+            [4, 5].to_vec(),
+            [6, 7, 8].to_vec(),
+            [9, 10].to_vec(),
+        ]
+        .to_vec();
+        let mut signers: Vec<v2::Signer> = signer_ids
+            .iter()
+            .enumerate()
+            .map(|(id, ids)| {
+                v2::Signer::new(
+                    id.try_into().unwrap(),
+                    ids,
+                    num_parties,
+                    num_keys,
+                    threshold,
+                    &mut OsRng,
+                )
+            })
+            .collect();
+
+        let polys = match test_helpers::dkg(&mut signers, &mut OsRng) {
+            Ok(polys) => polys,
+            Err(secret_errors) => {
+                panic!("Got secret errors from DKG: {secret_errors:?}");
+            }
+        };
+
+        let mut signing_set = [signers[0].clone(), signers[1].clone(), signers[3].clone()].to_vec();
+        let key_ids = signing_set
+            .iter()
+            .flat_map(|s| s.get_key_ids())
+            .collect::<Vec<u32>>();
+        let mut sig_agg = v2::Aggregator::new(num_keys, threshold);
+        sig_agg.init(&polys).expect("aggregator init failed");
+        let public_key = sig_agg.poly[0].clone();
+        let public_key_bytes = public_key.x().to_bytes();
+
+        // the sBTC accept script must be of the form
+        //
+        //     <sbtc_payload> DROP <signers_pubkey> CHECKSIGVERIFY
+        //
+        // with 160-bytes of <sbtc_payload>
+        let accept_script = Builder::new()
+            //.push_slice(&[0u8; 160])
+            //.push_opcode(OP_DROP)
+            .push_slice(public_key_bytes)
+            .push_opcode(OP_CHECKSIGVERIFY);
+
+        // the reject script must be of the form
+        //
+        //     <lock_time> CHECKSEQUENCEVERIFY <reclaim script>
+    }
 
     #[test]
     fn verify_sig_no_merkle_root() {
