@@ -193,6 +193,7 @@ mod test {
     use super::*;
     use crate::{
         compute,
+        curve,
         taproot::{test_helpers, SchnorrProof},
         traits::{Aggregator, Signer},
         v2,
@@ -204,9 +205,11 @@ mod test {
             script::{Builder, PushBytesBuf},
         },
         opcodes::all::*,
+        taproot::TaprootBuilder,
     };
     use rand_core::OsRng;
-
+    use sha2::{Digest, Sha256};
+    
     #[test]
     fn verify_sig_tapscript() {
         // Generate a DKG aggregate key.
@@ -269,7 +272,8 @@ mod test {
             .push_slice(push_bytes)
             .push_opcode(OP_DROP)
             .push_slice(wsts_public_key_bytes)
-            .push_opcode(OP_CHECKSIGVERIFY);
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .into_script();
 
         println!("Accept script {accept_script}");
 
@@ -287,9 +291,23 @@ mod test {
             .push_lock_time(absolute::LockTime::ZERO)
             .push_opcode(OP_CSV)
             .push_x_only_key(&depositor_public_key)
-            .push_opcode(OP_CHECKSIGVERIFY);
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .into_script();
 
         println!("Reject script {reject_script}");
+
+        let mut hasher = Sha256::new();
+        hasher.update(curve::point::G.x().to_bytes());
+
+        let x = curve::field::Element::try_from(hasher.finalize().as_slice()).unwrap();
+        let internal_key_point = curve::point::Point::lift_x(&x).unwrap();
+        let internal_key = bitcoin::XOnlyPublicKey::from_slice(&internal_key_point.x().to_bytes()).unwrap();
+        let taproot_spend_info = TaprootBuilder::new()
+            .add_leaf(1, accept_script).unwrap()
+            .add_leaf(1, reject_script).unwrap()
+            .finalize(&secp, internal_key)
+            .expect("failed to finalize taproot_spend_info");
+
     }
 
     #[test]
