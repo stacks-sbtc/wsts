@@ -192,8 +192,7 @@ impl UnsignedTx {
 mod test {
     use super::*;
     use crate::{
-        compute,
-        curve,
+        compute, curve,
         taproot::{test_helpers, SchnorrProof},
         traits::{Aggregator, Signer},
         v2,
@@ -209,7 +208,7 @@ mod test {
     };
     use rand_core::OsRng;
     use sha2::{Digest, Sha256};
-    
+
     #[test]
     fn verify_sig_tapscript() {
         // Generate a DKG aggregate key.
@@ -296,18 +295,22 @@ mod test {
 
         println!("Reject script {reject_script}");
 
-        let mut hasher = Sha256::new();
-        hasher.update(curve::point::G.x().to_bytes());
+        // BIP-341 defines the NUMS field element as the hash of the x-coord of G
+        let nums_x_data =
+            hex::decode("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0")
+                .unwrap();
+        let nums_x = curve::field::Element::try_from(nums_x_data.as_slice()).unwrap();
+        let nums_key_point = curve::point::Point::lift_x(&nums_x).unwrap();
+        let internal_key =
+            bitcoin::XOnlyPublicKey::from_slice(&nums_key_point.x().to_bytes()).unwrap();
 
-        let x = curve::field::Element::try_from(hasher.finalize().as_slice()).unwrap();
-        let internal_key_point = curve::point::Point::lift_x(&x).unwrap();
-        let internal_key = bitcoin::XOnlyPublicKey::from_slice(&internal_key_point.x().to_bytes()).unwrap();
         let taproot_spend_info = TaprootBuilder::new()
-            .add_leaf(1, accept_script).unwrap()
-            .add_leaf(1, reject_script).unwrap()
+            .add_leaf(1, accept_script)
+            .unwrap()
+            .add_leaf(1, reject_script)
+            .unwrap()
             .finalize(&secp, internal_key)
             .expect("failed to finalize taproot_spend_info");
-
     }
 
     #[test]
