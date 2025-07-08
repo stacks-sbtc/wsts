@@ -6,8 +6,8 @@ use bitcoin::{
     sighash::{Prevouts, SighashCache},
     taproot::Signature,
     transaction::Version,
-    Amount, OutPoint, ScriptBuf, Sequence, TapNodeHash, TapSighash, TapSighashType, Transaction,
-    TxIn, TxOut, Witness,
+    Amount, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash, TapSighashType,
+    Transaction, TxIn, TxOut, Witness,
 };
 
 use std::sync::LazyLock;
@@ -130,6 +130,27 @@ impl UnsignedTx {
 
         sighasher
             .taproot_key_spend_signature_hash(0, &Prevouts::All(&prevouts), TapSighashType::All)
+            .map_err(Into::into)
+    }
+
+    /// Gets the sighash for the signers' input UTXO which needs to be signed
+    /// before the transaction can be broadcast, using a script spend from the passed leaf
+    pub fn compute_script_sighash<C: Verification, S: Into<TapLeafHash>>(
+        &self,
+        secp: &Secp256k1<C>,
+        merkle_root: Option<TapNodeHash>,
+        leaf_hash: S,
+    ) -> Result<TapSighash, Error> {
+        let prevouts = [self.utxo.as_tx_output(secp, merkle_root)];
+        let mut sighasher = SighashCache::new(&self.tx);
+
+        sighasher
+            .taproot_script_spend_signature_hash(
+                0,
+                &Prevouts::All(&prevouts),
+                leaf_hash,
+                TapSighashType::All,
+            )
             .map_err(Into::into)
     }
 
@@ -289,6 +310,7 @@ mod test {
         let reject_script = Builder::new()
             .push_lock_time(absolute::LockTime::ZERO)
             .push_opcode(OP_CSV)
+            .push_opcode(OP_DROP)
             .push_x_only_key(&depositor_public_key)
             .push_opcode(OP_CHECKSIGVERIFY)
             .into_script();
@@ -304,13 +326,44 @@ mod test {
         let internal_key =
             bitcoin::XOnlyPublicKey::from_slice(&nums_key_point.x().to_bytes()).unwrap();
 
-        let taproot_spend_info = TaprootBuilder::new()
+        let spend_info = TaprootBuilder::new()
             .add_leaf(1, accept_script)
             .unwrap()
             .add_leaf(1, reject_script)
             .unwrap()
-            .finalize(&secp, internal_key)
+            //.finalize(&secp, internal_key)
+            .finalize(&secp, depositor_public_key)
             .expect("failed to finalize taproot_spend_info");
+
+        let spend_internal_key = spend_info.internal_key();
+        let merkle_root = spend_info.merkle_root();
+        let tweaked = depositor_keypair.tap_tweak(&secp, merkle_root);
+        let (tweaked_public_key, _) = tweaked.public_parts();
+
+        let script_pubkey = ScriptBuf::new_p2tr(&secp, spend_internal_key, merkle_root);
+
+        let unsigned = UnsignedTx::new(spend_internal_key);
+        let mut sighasher = SighashCache::new(&unsigned.tx);
+
+        let tapsig = unsigned
+            .compute_sighash(&secp, merkle_root)
+            .expect("failed to compute taproot sighash");
+
+        // Sign the taproot sighash.
+        let message = secp256k1::Message::from_digest_slice(tapsig.as_ref())
+            .expect("Failed to create message");
+
+        // first test a standard schnorr signature
+
+        // [1] Verify the correct signature, which should succeed.
+        let schnorr_sig = secp.sign_schnorr(&message, &tweaked.to_keypair());
+        let taproot_sig = bitcoin::taproot::Signature {
+            signature: schnorr_sig,
+            sighash_type: TapSighashType::All,
+        };
+        unsigned
+            .verify_signature(&secp, &taproot_sig, merkle_root)
+            .expect("signature verification failed");
     }
 
     #[test]
