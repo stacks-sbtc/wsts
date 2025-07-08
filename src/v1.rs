@@ -301,7 +301,7 @@ pub struct Aggregator {
     pub num_keys: u32,
     /// The threshold of signers needed to construct a valid signature
     pub threshold: u32,
-    /// The aggregate group polynomial; poly[0] is the group public key
+    /// The aggregate group polynomial; `poly[0]` is the group public key
     pub poly: Vec<Point>,
 }
 

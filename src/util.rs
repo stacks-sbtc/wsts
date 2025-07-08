@@ -60,7 +60,7 @@ pub fn make_shared_secret_from_key(shared_key: &Point) -> [u8; 32] {
 }
 
 /// Derive a shared key using the ANSI-x963 standard
-/// https://www.secg.org/sec1-v2.pdf (section 3.6.1)
+/// <https://www.secg.org/sec1-v2.pdf> (section 3.6.1)
 pub fn ansi_x963_derive_key(shared_key: &[u8], shared_info: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::new();
     let counter = 1u32;
