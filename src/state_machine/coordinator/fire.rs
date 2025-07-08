@@ -1697,34 +1697,19 @@ pub mod test {
             sig: Default::default(),
         };
 
+        // check that a signature share is ignored due to not being on the wait list
+        coordinator
+            .gather_sig_shares(&packet, signature_type)
+            .unwrap();
+        assert_eq!(0, coordinator.signature_shares.len());
+
+        // add the signer to the wait list then verify that the signature share is accepted
         let response_info = coordinator
             .message_nonces
             .entry(coordinator.message.clone())
             .or_default();
         response_info.sign_wait_signer_ids.insert(0);
 
-        coordinator
-            .gather_sig_shares(&packet, signature_type)
-            .unwrap();
-        assert_eq!(1, coordinator.signature_shares.len());
-
-        // check that a signature share is ignored due to not being on the wait list
-        let dup_signature_share = SignatureShare {
-            id: 1,
-            z_i: Scalar::random(&mut rng),
-            key_ids: vec![1],
-        };
-        let dup_sig_share_response = SignatureShareResponse {
-            dkg_id: 0,
-            sign_id: 0,
-            sign_iter_id: 0,
-            signer_id: 0,
-            signature_shares: vec![dup_signature_share.clone()],
-        };
-        let packet = Packet {
-            msg: Message::SignatureShareResponse(dup_sig_share_response.clone()),
-            sig: Default::default(),
-        };
         coordinator
             .gather_sig_shares(&packet, signature_type)
             .unwrap();
