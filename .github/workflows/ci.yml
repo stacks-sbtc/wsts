@@ -45,7 +45,7 @@ jobs:
       - name: Cargo Test
         id: cargo_test
         run: |
-          cargo test
+          cargo test --features with_v1
 
   fmt:
     name: fmt
@@ -83,7 +83,7 @@ jobs:
       - name: Cargo Clippy
         id: cargo_clippy
         run: |
-          cargo clippy --all-targets -- -D warnings -A clippy::op-ref -A clippy::needless-range-loop
+          cargo clippy --all-targets --all-features -- -D warnings -A clippy::op-ref -A clippy::needless-range-loop
 
   doc:
     permissions:

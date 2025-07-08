@@ -153,7 +153,9 @@ pub mod test_helpers {
 mod test {
     use super::{test_helpers, Point, Scalar, SchnorrProof, G};
 
-    use crate::{compute, traits::Aggregator, traits::Signer, util::create_rng, v1, v2};
+    #[cfg(feature = "with_v1")]
+    use crate::v1;
+    use crate::{compute, traits::Aggregator, traits::Signer, util::create_rng, v2};
 
     #[test]
     #[allow(non_snake_case)]
@@ -285,6 +287,7 @@ mod test {
 
     #[test]
     #[allow(non_snake_case)]
+    #[cfg(feature = "with_v1")]
     fn taproot_sign_verify_v1_with_merkle_root() {
         let script = "OP_1".as_bytes();
         let merkle_root = compute::merkle_root(script);
@@ -294,11 +297,13 @@ mod test {
 
     #[test]
     #[allow(non_snake_case)]
+    #[cfg(feature = "with_v1")]
     fn taproot_sign_verify_v1_no_merkle_root() {
         taproot_sign_verify_v1(None);
     }
 
     #[allow(non_snake_case)]
+    #[cfg(feature = "with_v1")]
     fn taproot_sign_verify_v1(merkle_root: Option<[u8; 32]>) {
         let mut rng = create_rng();
 

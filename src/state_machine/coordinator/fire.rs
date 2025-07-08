@@ -1386,6 +1386,8 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
 /// Test module for coordinator functionality
 pub mod test {
     use super::*;
+    #[cfg(feature = "with_v1")]
+    use crate::v1;
     use crate::{
         curve::{point::Point, scalar::Scalar},
         net::{
@@ -1409,12 +1411,13 @@ pub mod test {
         },
         traits::{Aggregator as AggregatorTrait, Signer as SignerTrait},
         util::create_rng,
-        v1, v2,
+        v2,
     };
     use hashbrown::HashMap;
     use std::{thread, time::Duration};
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn new_coordinator_v1() {
         new_coordinator::<FireCoordinator<v1::Aggregator>>();
     }
@@ -1425,6 +1428,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn equal_after_save_load_v1() {
         equal_after_save_load::<FireCoordinator<v1::Aggregator>, v1::Signer>(2, 2);
     }
@@ -1435,6 +1439,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn coordinator_state_machine_v1() {
         coordinator_state_machine::<FireCoordinator<v1::Aggregator>>();
     }
@@ -1445,6 +1450,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn start_dkg_round_v1() {
         start_dkg_round::<FireCoordinator<v1::Aggregator>>(None);
         start_dkg_round::<FireCoordinator<v1::Aggregator>>(Some(12345u64));
@@ -1457,16 +1463,19 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn dkg_public_share_v1() {
         dkg_public_share::<v1::Aggregator, v1::Signer>();
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn dkg_public_share_v2() {
         dkg_public_share::<v1::Aggregator, v2::Signer>();
     }
 
     /// test basic insertion and detection of duplicates for DkgPublicShares
+    #[allow(dead_code)]
     fn dkg_public_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
         let ctx = 0u64.to_be_bytes();
         let mut rng = create_rng();
@@ -1524,6 +1533,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn dkg_private_share_v1() {
         dkg_private_share::<v1::Aggregator, v1::Signer>();
     }
@@ -1577,6 +1587,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn nonce_response_v1() {
         nonce_response::<v1::Aggregator, v1::Signer>();
     }
@@ -1646,16 +1657,19 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn sig_share_v1() {
         sig_share::<v1::Aggregator, v1::Signer>();
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn sig_share_v2() {
         sig_share::<v2::Aggregator, v1::Signer>();
     }
 
     /// test basic insertion and detection of duplicates for SignatureShareResponse
+    #[allow(dead_code)]
     fn sig_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
         let mut rng = create_rng();
         let (coordinators, _) = setup::<FireCoordinator<Aggregator>, Signer>(2, 1);
@@ -1719,6 +1733,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn start_public_shares_v1() {
         start_public_shares::<v1::Aggregator>();
     }
@@ -1743,6 +1758,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn start_private_shares_v1() {
         start_private_shares::<v1::Aggregator>();
     }
@@ -1766,6 +1782,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn run_dkg_sign_v1() {
         for _ in 0..4 {
             run_dkg_sign::<FireCoordinator<v1::Aggregator>, v1::Signer>(5, 2);
@@ -1780,6 +1797,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn check_signature_shares_v1() {
         check_signature_shares::<FireCoordinator<v1::Aggregator>, v1::Signer>(
             5,
@@ -1836,6 +1854,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn all_signers_dkg_v1() {
         all_signers_dkg::<v1::Aggregator, v1::Signer>(5, 2);
     }
@@ -1902,6 +1921,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn missing_public_keys_dkg_v1() {
         missing_public_keys_dkg::<v1::Aggregator, v1::Signer>(10, 1);
     }
@@ -1987,6 +2007,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn minimum_signers_dkg_v1() {
         minimum_signers_dkg::<v1::Aggregator, v1::Signer>(10, 2);
     }
@@ -2146,6 +2167,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn insufficient_signers_dkg_v1() {
         insufficient_signers_dkg::<v1::Aggregator, v1::Signer>();
     }
@@ -2304,6 +2326,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn malicious_signers_dkg_v1() {
         malicious_signers_dkg::<v1::Aggregator, v1::Signer>(5, 2);
     }
@@ -2417,6 +2440,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn bad_poly_length_dkg_v1() {
         bad_poly_length_dkg::<v1::Aggregator, v1::Signer>(5, 2);
     }
@@ -2524,6 +2548,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn all_signers_sign_v1() {
         all_signers_sign::<v1::Aggregator, v1::Signer>();
     }
@@ -2586,6 +2611,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn minimum_signers_sign_v1() {
         minimum_signers_sign::<v1::Aggregator, v1::Signer>();
     }
@@ -2665,6 +2691,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn missing_public_keys_sign_v1() {
         missing_public_keys_sign::<v1::Aggregator, v1::Signer>();
     }
@@ -2748,6 +2775,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn insufficient_signers_sign_v1() {
         insufficient_signers_sign::<v1::Aggregator, v1::Signer>();
     }
@@ -3008,6 +3036,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn multiple_nonce_request_messages_sign_v1() {
         multiple_nonce_request_messages::<v1::Aggregator, v1::Signer>();
     }
@@ -3103,6 +3132,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn old_round_ids_are_ignored_v1() {
         old_round_ids_are_ignored::<v1::Aggregator, v1::Signer>();
     }
@@ -3182,6 +3212,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn gen_nonces_v1() {
         gen_nonces::<FireCoordinator<v1::Aggregator>, v1::Signer>(5, 1);
     }
@@ -3192,6 +3223,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn bad_signature_share_request_v1() {
         bad_signature_share_request::<FireCoordinator<v1::Aggregator>, v1::Signer>(5, 2);
     }
@@ -3202,6 +3234,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn invalid_nonce_v1() {
         invalid_nonce::<FireCoordinator<v1::Aggregator>, v1::Signer>(5, 2);
     }
@@ -3212,6 +3245,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn one_signer_bad_threshold_v1() {
         one_signer_bad_threshold::<v1::Aggregator, v1::Signer>();
     }
@@ -3313,6 +3347,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn bad_dkg_threshold_v1() {
         bad_dkg_threshold::<v1::Aggregator, v1::Signer>();
     }
@@ -3390,6 +3425,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn empty_public_shares_v1() {
         empty_public_shares::<FireCoordinator<v1::Aggregator>, v1::Signer>(5, 2);
     }
@@ -3400,6 +3436,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn empty_private_shares_v1() {
         empty_private_shares::<FireCoordinator<v1::Aggregator>, v1::Signer>(5, 2);
     }
