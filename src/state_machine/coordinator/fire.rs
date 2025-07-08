@@ -947,7 +947,13 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             return Ok(());
         };
 
-        let response_info = self.message_nonces.entry(self.message.clone()).or_default();
+        let Some(response_info) = self.message_nonces.get_mut(&self.message) else {
+            warn!(
+                "Sign round {} SignatureShareResponse for round {} from signer {} no message nonces entry",
+                self.current_sign_id, sig_share_response.sign_id, sig_share_response.signer_id,
+            );
+            return Ok(());
+        };
         if response_info
             .sign_wait_signer_ids
             .contains(&sig_share_response.signer_id)
