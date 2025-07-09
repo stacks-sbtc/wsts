@@ -297,6 +297,7 @@ pub trait Coordinator: Clone + Debug + PartialEq + StateMachine<State, Error> {
     fn get_config(&self) -> Config;
 
     /// Retrieve a mutable reference to the config
+    #[cfg(test)]
     fn get_config_mut(&mut self) -> &mut Config;
 
     /// Set the coordinator public key
