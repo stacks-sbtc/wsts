@@ -443,12 +443,11 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         rng: &mut R,
     ) -> Result<Vec<Message>, Error> {
         if self.verify_packet_sigs {
-            if let Some(coordinator_public_key) = self.coordinator_public_key {
-                if !packet.verify(&self.public_keys, &coordinator_public_key) {
-                    return Err(Error::InvalidPacketSignature);
-                }
-            } else {
+            let Some(coordinator_public_key) = self.coordinator_public_key else {
                 return Err(Error::MissingCoordinatorPublicKey);
+            };
+            if !packet.verify(&self.public_keys, &coordinator_public_key) {
+                return Err(Error::InvalidPacketSignature);
             }
         }
         let out_msgs = match &packet.msg {

@@ -61,12 +61,11 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         packet: &Packet,
     ) -> Result<(Option<Packet>, Option<OperationResult>), Error> {
         if self.config.verify_packet_sigs {
-            if let Some(coordinator_public_key) = self.coordinator_public_key {
-                if !packet.verify(&self.config.public_keys, &coordinator_public_key) {
-                    return Err(Error::InvalidPacketSignature);
-                }
-            } else {
+            let Some(coordinator_public_key) = self.coordinator_public_key else {
                 return Err(Error::MissingCoordinatorPublicKey);
+            };
+            if !packet.verify(&self.config.public_keys, &coordinator_public_key) {
+                return Err(Error::InvalidPacketSignature);
             }
         }
         loop {
