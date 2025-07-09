@@ -1475,6 +1475,7 @@ pub mod test {
                     empty_private_shares, empty_public_shares, equal_after_save_load,
                     feedback_messages, feedback_mutated_messages, gen_nonces, invalid_nonce,
                     new_coordinator, run_dkg_sign, setup, setup_with_timeouts, start_dkg_round,
+                    verify_packet_sigs,
                 },
                 Config, Coordinator as CoordinatorTrait, State,
             },
@@ -3482,5 +3483,15 @@ pub mod test {
     #[test]
     fn empty_private_shares_v2() {
         empty_private_shares::<FireCoordinator<v2::Aggregator>, v2::Signer>(5, 2);
+    }
+
+    #[test]
+    fn verify_packet_sigs_v1() {
+        verify_packet_sigs::<FireCoordinator<v1::Aggregator>, v1::Signer>();
+    }
+
+    #[test]
+    fn verify_packet_sigs_v2() {
+        verify_packet_sigs::<FireCoordinator<v2::Aggregator>, v2::Signer>();
     }
 }
