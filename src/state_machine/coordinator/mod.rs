@@ -950,6 +950,16 @@ pub mod test {
     }
 
     pub fn verify_packet_sigs<Coordinator: CoordinatorTrait, SignerType: SignerTrait>() {
+        verify_removed_coordinator_key_on_signers::<Coordinator, SignerType>();
+        verify_removed_coordinator_key_on_coordinator::<Coordinator, SignerType>();
+        verify_changed_coordinator_key_on_signers::<Coordinator, SignerType>();
+        verify_changed_coordinator_key_on_coordinator::<Coordinator, SignerType>();
+    }
+
+    pub fn verify_removed_coordinator_key_on_signers<
+        Coordinator: CoordinatorTrait,
+        SignerType: SignerTrait,
+    >() {
         let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
         let mut coordinators = vec![coordinators[0].clone()];
 
@@ -1066,8 +1076,13 @@ pub mod test {
                 SignerError::MissingCoordinatorPublicKey
             ))
         ));
+    }
 
-        // Remove the coordinator public key on the coordinator and show that signatures fail to verify
+    // Remove the coordinator public key on the coordinator and show that signatures fail to verify
+    pub fn verify_removed_coordinator_key_on_coordinator<
+        Coordinator: CoordinatorTrait,
+        SignerType: SignerTrait,
+    >() {
         let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
         let mut coordinators = vec![coordinators[0].clone()];
 
@@ -1102,8 +1117,13 @@ pub mod test {
                 Error::MissingCoordinatorPublicKey
             ))
         ));
+    }
 
-        // Change the coordinator public key on the signers and show that signatures fail to verify
+    // Change the coordinator public key on the signers and show that signatures fail to verify
+    pub fn verify_changed_coordinator_key_on_signers<
+        Coordinator: CoordinatorTrait,
+        SignerType: SignerTrait,
+    >() {
         let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
         let mut coordinators = vec![coordinators[0].clone()];
 
@@ -1139,8 +1159,13 @@ pub mod test {
                 SignerError::InvalidPacketSignature
             ))
         ));
+    }
 
-        // Change the coordinator public key on the coordinator and show that signatures fail to verify
+    // Change the coordinator public key on the coordinator and show that signatures fail to verify
+    pub fn verify_changed_coordinator_key_on_coordinator<
+        Coordinator: CoordinatorTrait,
+        SignerType: SignerTrait,
+    >() {
         let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
         let mut coordinators = vec![coordinators[0].clone()];
 
