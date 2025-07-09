@@ -97,7 +97,7 @@ pub enum Error {
     /// An error during integer conversion operations
     TryFromInt(#[from] TryFromIntError),
     #[error("Missing coordinator public key")]
-    /// Missing coordinator public key"
+    /// Missing coordinator public key
     MissingCoordinatorPublicKey,
     #[error("A packet had an invalid signature")]
     /// A packet had an invalid signature
