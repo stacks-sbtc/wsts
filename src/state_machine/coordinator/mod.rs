@@ -156,6 +156,7 @@ impl fmt::Debug for Config {
             .field("sign_timeout", &self.sign_timeout)
             .field("signer_key_ids", &self.public_keys.signer_key_ids)
             .field("signer_public_keys", &self.public_keys.signers)
+            .field("verify_packet_sigs", &self.verify_packet_sigs)
             .finish_non_exhaustive()
     }
 }
