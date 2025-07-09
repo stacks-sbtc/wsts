@@ -79,6 +79,15 @@ pub enum Error {
     /// Missing message response information for a signing round
     #[error("Missing message nonce information")]
     MissingMessageNonceInfo,
+    /// Missing public key for signer
+    #[error("Missing public key for signer {0}")]
+    MissingPublicKeyForSigner(u32),
+    /// Missing key IDs for signer
+    #[error("Missing key IDs for signer {0}")]
+    MissingKeyIDsForSigner(u32),
+    /// Bad key IDs for signer
+    #[error("Bad key IDs for signer {0}")]
+    BadKeyIDsForSigner(u32),
     /// DKG failure from signers
     #[error("DKG failure from signers")]
     DkgFailure(HashMap<u32, DkgFailure>),

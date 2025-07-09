@@ -943,91 +943,107 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         packet: &Packet,
         signature_type: SignatureType,
     ) -> Result<(), Error> {
-        if let Message::SignatureShareResponse(sig_share_response) = &packet.msg {
-            if sig_share_response.dkg_id != self.current_dkg_id {
-                return Err(Error::BadDkgId(
-                    sig_share_response.dkg_id,
-                    self.current_dkg_id,
-                ));
-            }
-            if sig_share_response.sign_id != self.current_sign_id {
-                return Err(Error::BadSignId(
-                    sig_share_response.sign_id,
-                    self.current_sign_id,
-                ));
-            }
+        let Message::SignatureShareResponse(sig_share_response) = &packet.msg else {
+            return Ok(());
+        };
 
-            // check that the signer_id exists in the config
-            let signer_public_keys = &self.config.signer_public_keys;
-            if !signer_public_keys.contains_key(&sig_share_response.signer_id) {
-                warn!(signer_id = %sig_share_response.signer_id, "No public key in config");
-                return Ok(());
-            };
-
-            // check that the key_ids match the config
-            let Some(signer_key_ids) = self
-                .config
-                .signer_key_ids
-                .get(&sig_share_response.signer_id)
-            else {
-                warn!(signer_id = %sig_share_response.signer_id, "No keys IDs configured");
-                return Ok(());
-            };
-
-            let mut sig_share_response_key_ids = HashSet::new();
-            for sig_share in &sig_share_response.signature_shares {
-                for key_id in &sig_share.key_ids {
-                    sig_share_response_key_ids.insert(*key_id);
-                }
-            }
-
-            if *signer_key_ids != sig_share_response_key_ids {
-                warn!(signer_id = %sig_share_response.signer_id, "SignatureShareResponse key_ids didn't match config");
-                return Ok(());
-            }
-
-            let have_shares = self
-                .signature_shares
-                .contains_key(&sig_share_response.signer_id);
-
-            if have_shares {
-                info!(signer_id = %sig_share_response.signer_id, "received duplicate SignatureShareResponse");
-                return Ok(());
-            }
-
-            self.signature_shares.insert(
-                sig_share_response.signer_id,
-                sig_share_response.signature_shares.clone(),
+        let Some(response_info) = self.message_nonces.get_mut(&self.message) else {
+            warn!(
+                "Sign round {} SignatureShareResponse for round {} from signer {} no message nonces entry",
+                self.current_sign_id, sig_share_response.sign_id, sig_share_response.signer_id,
             );
-            let response_info = self.message_nonces.entry(self.message.clone()).or_default();
-            if response_info
+            return Ok(());
+        };
+        if response_info
+            .sign_wait_signer_ids
+            .contains(&sig_share_response.signer_id)
+        {
+            response_info
                 .sign_wait_signer_ids
-                .contains(&sig_share_response.signer_id)
-            {
-                response_info
-                    .sign_wait_signer_ids
-                    .remove(&sig_share_response.signer_id);
-                for sig_share in &sig_share_response.signature_shares {
-                    for key_id in &sig_share.key_ids {
-                        response_info.sign_recv_key_ids.insert(*key_id);
-                    }
-                }
+                .remove(&sig_share_response.signer_id);
+        } else {
+            warn!(
+                "Sign round {} SignatureShareResponse for round {} from signer {} not in the wait list",
+                self.current_sign_id, sig_share_response.sign_id, sig_share_response.signer_id,
+            );
+            return Ok(());
+        }
 
-                debug!(
-                    "Sign round {} SignatureShareResponse from signer {} ({}/{} key_ids). Waiting on {:?}",
-                    sig_share_response.sign_id,
-                    sig_share_response.signer_id,
-                    response_info.sign_recv_key_ids.len(),
-                    response_info.nonce_recv_key_ids.len(),
-                    response_info.sign_wait_signer_ids
-                );
-            } else {
-                warn!(
-                    "Sign round {} SignatureShareResponse from signer {} not in the wait list",
-                    sig_share_response.sign_id, sig_share_response.signer_id,
-                );
+        debug!(
+            "Sign round {} SignatureShareResponse for round {} from signer {} ({}/{} key_ids). Waiting on {:?}",
+            self.current_sign_id,
+            sig_share_response.sign_id,
+            sig_share_response.signer_id,
+            response_info.sign_recv_key_ids.len(),
+            response_info.nonce_recv_key_ids.len(),
+            response_info.sign_wait_signer_ids
+        );
+
+        if sig_share_response.dkg_id != self.current_dkg_id {
+            return Err(Error::BadDkgId(
+                sig_share_response.dkg_id,
+                self.current_dkg_id,
+            ));
+        }
+        if sig_share_response.sign_id != self.current_sign_id {
+            return Err(Error::BadSignId(
+                sig_share_response.sign_id,
+                self.current_sign_id,
+            ));
+        }
+
+        // check that the signer_id exists in the config
+        let signer_public_keys = &self.config.signer_public_keys;
+        if !signer_public_keys.contains_key(&sig_share_response.signer_id) {
+            warn!(signer_id = %sig_share_response.signer_id, "No public key in config");
+            return Err(Error::MissingPublicKeyForSigner(
+                sig_share_response.signer_id,
+            ));
+        };
+
+        // check that the key_ids match the config
+        let Some(signer_key_ids) = self
+            .config
+            .signer_key_ids
+            .get(&sig_share_response.signer_id)
+        else {
+            warn!(signer_id = %sig_share_response.signer_id, "No keys IDs configured");
+            return Err(Error::MissingKeyIDsForSigner(sig_share_response.signer_id));
+        };
+
+        let mut sig_share_response_key_ids = HashSet::new();
+        for sig_share in &sig_share_response.signature_shares {
+            for key_id in &sig_share.key_ids {
+                sig_share_response_key_ids.insert(*key_id);
             }
         }
+
+        if *signer_key_ids != sig_share_response_key_ids {
+            warn!(signer_id = %sig_share_response.signer_id, "SignatureShareResponse key_ids didn't match config");
+            return Err(Error::BadKeyIDsForSigner(sig_share_response.signer_id));
+        }
+
+        let have_shares = self
+            .signature_shares
+            .contains_key(&sig_share_response.signer_id);
+
+        if have_shares {
+            info!(signer_id = %sig_share_response.signer_id, "received duplicate SignatureShareResponse");
+            // XXX should this be an error?  We should have already removed signer from wait set
+            return Ok(());
+        }
+
+        self.signature_shares.insert(
+            sig_share_response.signer_id,
+            sig_share_response.signature_shares.clone(),
+        );
+
+        for sig_share in &sig_share_response.signature_shares {
+            for key_id in &sig_share.key_ids {
+                response_info.sign_recv_key_ids.insert(*key_id);
+            }
+        }
+
         let message_nonce = self
             .message_nonces
             .get(&self.message)
@@ -1680,12 +1696,32 @@ pub mod test {
             msg: Message::SignatureShareResponse(sig_share_response.clone()),
             sig: Default::default(),
         };
+
+        // check that a signature share is ignored due to not being on the wait list
+        coordinator
+            .gather_sig_shares(&packet, signature_type)
+            .unwrap();
+        assert_eq!(0, coordinator.signature_shares.len());
+
+        // add the signer to the wait list then verify that the signature share is accepted
+        let response_info = coordinator
+            .message_nonces
+            .entry(coordinator.message.clone())
+            .or_default();
+        response_info.sign_wait_signer_ids.insert(0);
+
         coordinator
             .gather_sig_shares(&packet, signature_type)
             .unwrap();
         assert_eq!(1, coordinator.signature_shares.len());
 
-        // check that a duplicate private share is ignored
+        // check that a duplicate signature share is ignored even if on the wait list
+        let response_info = coordinator
+            .message_nonces
+            .entry(coordinator.message.clone())
+            .or_default();
+        response_info.sign_wait_signer_ids.insert(0);
+
         let dup_signature_share = SignatureShare {
             id: 1,
             z_i: Scalar::random(&mut rng),
@@ -1705,6 +1741,7 @@ pub mod test {
         coordinator
             .gather_sig_shares(&packet, signature_type)
             .unwrap();
+
         assert_eq!(1, coordinator.signature_shares.len());
         assert_eq!(
             vec![signature_share],
