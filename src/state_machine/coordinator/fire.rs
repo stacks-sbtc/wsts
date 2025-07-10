@@ -892,7 +892,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 threshold = %self.config.threshold,
                 "Received NonceResponse"
             );
-            if nonce_info.nonce_recv_key_ids.len() >= self.config.threshold as usize {
+            if nonce_info.nonce_recv_key_ids.len() >= self.config.sign_threshold as usize {
                 // We have a winning message!
                 self.message.clone_from(&nonce_response.message);
                 let aggregate_nonce = self.compute_aggregate_nonce();
@@ -2604,6 +2604,85 @@ pub mod test {
         // Send the SignatureShareRequest message to all signers and share their responses with the coordinator and signers
         let (outbound_messages, operation_results) =
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
+        assert!(outbound_messages.is_empty());
+        assert_eq!(operation_results.len(), 1);
+        let OperationResult::Sign(sig) = &operation_results[0] else {
+            panic!("Expected Signature Operation result")
+        };
+        assert!(sig.verify(
+            &coordinators
+                .first()
+                .unwrap()
+                .aggregate_public_key
+                .expect("No aggregate public key set!"),
+            &msg
+        ));
+        for coordinator in &coordinators {
+            assert_eq!(coordinator.state, State::Idle);
+        }
+    }
+
+    #[test]
+    fn sign_threshold_sign_v1() {
+        sign_threshold_sign::<v1::Aggregator, v1::Signer>();
+    }
+
+    #[test]
+    fn sign_threshold_sign_v2() {
+        sign_threshold_sign::<v2::Aggregator, v2::Signer>();
+    }
+
+    fn sign_threshold_sign<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
+        let (mut coordinators, mut signers) = all_signers_dkg::<Aggregator, Signer>(5, 2);
+
+        // change the sign_threshold to num_keys
+        for coordinator in &mut coordinators {
+            coordinator.config.sign_threshold = coordinator.config.num_keys;
+        }
+
+        // We have started a signing round
+        let msg = "It was many and many a year ago, in a kingdom by the sea"
+            .as_bytes()
+            .to_vec();
+        let signature_type = SignatureType::Frost;
+        let message = coordinators
+            .first_mut()
+            .unwrap()
+            .start_signing_round(&msg, signature_type)
+            .unwrap();
+        assert_eq!(
+            coordinators.first().unwrap().state,
+            State::NonceGather(signature_type)
+        );
+
+        // Send the message to all signers and gather responses by sharing with all other signers and coordinator
+        let (outbound_messages, operation_results) =
+            feedback_messages(&mut coordinators, &mut signers, &[message]);
+        assert!(operation_results.is_empty());
+        for coordinator in &coordinators {
+            assert_eq!(coordinator.state, State::SigShareGather(signature_type));
+        }
+
+        // check to see that we have nonces from all signers
+        for coordinator in &coordinators {
+            let sign_round_info = &coordinator.message_nonces[&msg];
+            assert_eq!(sign_round_info.public_nonces.len(), signers.len());
+        }
+
+        assert_eq!(outbound_messages.len(), 1);
+        assert!(
+            matches!(outbound_messages[0].msg, Message::SignatureShareRequest(_)),
+            "Expected SignatureShareRequest message"
+        );
+        // Send the SignatureShareRequest message to all signers and share their responses with the coordinator and signers
+        let (outbound_messages, operation_results) =
+            feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
+
+        // check to see that we have signature shares from all signers
+        for coordinator in &coordinators {
+            assert_eq!(coordinator.signature_shares.len(), signers.len());
+        }
+
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
         let OperationResult::Sign(sig) = &operation_results[0] else {

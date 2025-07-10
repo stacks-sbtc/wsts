@@ -118,6 +118,8 @@ pub struct Config {
     pub threshold: u32,
     /// threshold of keys needed to complete DKG (must be >= threshold)
     pub dkg_threshold: u32,
+    /// threshold of keys needed to start a signing round (must be >= threshold)
+    pub sign_threshold: u32,
     /// private key used to sign network messages
     pub message_private_key: Scalar,
     /// timeout to gather DkgPublicShares messages
@@ -166,6 +168,7 @@ impl Config {
             num_keys,
             threshold,
             dkg_threshold: num_keys,
+            sign_threshold: threshold,
             message_private_key,
             dkg_public_timeout: None,
             dkg_private_timeout: None,
@@ -198,6 +201,7 @@ impl Config {
             num_keys,
             threshold,
             dkg_threshold,
+            sign_threshold: threshold,
             message_private_key,
             dkg_public_timeout,
             dkg_private_timeout,
