@@ -742,7 +742,9 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         // Cache the polynomials used in DKG for the aggregator
         for signer_id in self.dkg_private_shares.keys() {
             for (party_id, comm) in &self.dkg_public_shares[signer_id].comms {
-                self.party_polynomials.insert(*party_id, comm.clone());
+                let mut comm = comm.clone();
+                comm.zeroize();
+                self.party_polynomials.insert(*party_id, comm);
             }
         }
 
@@ -754,6 +756,10 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             .fold(Point::default(), |s, (_, comm)| s + comm.poly[0]);
 
         info!("Aggregate public key: {key}");
+
+        self.dkg_public_shares.clear();
+        self.dkg_private_shares.clear();
+
         self.aggregate_public_key = Some(key);
         self.move_to(State::Idle)
     }
@@ -1108,6 +1114,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
 
             self.move_to(State::Idle)?;
         }
+
         Ok(())
     }
 
@@ -1416,7 +1423,8 @@ pub mod test {
                     bad_signature_share_request, check_signature_shares, coordinator_state_machine,
                     empty_private_shares, empty_public_shares, equal_after_save_load,
                     feedback_messages, feedback_mutated_messages, gen_nonces, invalid_nonce,
-                    new_coordinator, run_dkg_sign, setup, setup_with_timeouts, start_dkg_round,
+                    new_coordinator, run_dkg_sign, sensitive_data, setup, setup_with_timeouts,
+                    start_dkg_round,
                 },
                 Config, Coordinator as CoordinatorTrait, State,
             },
@@ -3226,6 +3234,16 @@ pub mod test {
     #[test]
     fn gen_nonces_v2() {
         gen_nonces::<FireCoordinator<v2::Aggregator>, v2::Signer>(5, 1);
+    }
+
+    #[test]
+    fn sensitive_data_v1() {
+        sensitive_data::<FireCoordinator<v1::Aggregator>, v1::Signer>(5, 1);
+    }
+
+    #[test]
+    fn sensitive_data_v2() {
+        sensitive_data::<FireCoordinator<v2::Aggregator>, v2::Signer>(5, 1);
     }
 
     #[test]

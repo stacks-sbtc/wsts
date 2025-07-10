@@ -1125,6 +1125,40 @@ pub mod test {
         }
     }
 
+    pub fn sensitive_data<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
+        num_signers: u32,
+        keys_per_signer: u32,
+    ) {
+        let (coordinators, signers) =
+            run_dkg::<Coordinator, SignerType>(num_signers, keys_per_signer);
+
+        // check the coordinators to see if they deleted public and private shares
+        for coordinator in &coordinators {
+            let state = coordinator.save();
+
+            assert!(state.dkg_public_shares.is_empty());
+            assert!(state.dkg_private_shares.is_empty());
+
+            for (_party_id, comm) in &state.party_polynomials {
+                assert!(comm.is_zero());
+            }
+        }
+
+        // check the signers to see if they deleted private shares and zeroed out poly commitments
+        for signer in &signers {
+            assert!(signer.dkg_private_shares.is_empty());
+
+            for (_party_id, comm) in &signer.commitments {
+                assert!(comm.is_zero());
+            }
+
+            for dkg_public_shares in signer.dkg_public_shares.values() {
+                for (_id, comm) in &dkg_public_shares.comms {
+                    assert!(comm.is_zero());
+                }
+            }
+        }
+    }
     pub fn bad_signature_share_request<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
         num_signers: u32,
         keys_per_signer: u32,

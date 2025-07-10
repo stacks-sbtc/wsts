@@ -375,7 +375,7 @@ pub mod test_helpers {
                 if party_id == bad_party_id {
                     // alter the schnorr proof so it will fail verification
                     let mut bad_comm = comm.clone();
-                    bad_comm.id.kca += Scalar::from(1);
+                    bad_comm.id.sigma_response += Scalar::from(1);
                     (party_id, bad_comm)
                 } else {
                     (party_id, comm)
