@@ -1133,6 +1133,8 @@ impl<SignerType: SignerTrait> StateMachine<State, Error> for Signer<SignerType> 
 /// Test module for signer functionality
 pub mod test {
     use super::*;
+    #[cfg(feature = "with_v1")]
+    use crate::v1;
     use crate::{
         common::PolyCommitment,
         curve::{ecdsa, scalar::Scalar},
@@ -1144,21 +1146,24 @@ pub mod test {
         },
         traits::Signer as SignerTrait,
         util::create_rng,
-        v1, v2,
+        v2,
     };
 
     use hashbrown::HashSet;
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn bad_config_v1() {
         bad_config::<v1::Signer>();
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn bad_config_v2() {
         bad_config::<v1::Signer>();
     }
 
+    #[allow(dead_code)]
     fn bad_config<SignerType: SignerTrait>() {
         let mut rng = create_rng();
 
@@ -1294,6 +1299,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn dkg_public_share_v1() {
         dkg_public_share::<v1::Signer>();
     }
@@ -1355,6 +1361,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn public_shares_done_v1() {
         public_shares_done::<v1::Signer>();
     }
@@ -1397,6 +1404,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     /// test basic insertion and detection of duplicates for DkgPrivateShares for v1
     fn dkg_private_share_v1() {
         let mut rng = create_rng();
@@ -1501,6 +1509,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn can_dkg_end_v1() {
         can_dkg_end::<v1::Signer>();
     }
@@ -1579,6 +1588,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn dkg_ended_v1() {
         dkg_ended::<v1::Signer>();
     }

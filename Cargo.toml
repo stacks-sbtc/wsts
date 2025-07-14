@@ -13,6 +13,7 @@ categories = ["cryptography"]
 [features]
 default = ["with_p256k1_bindgen"]
 with_p256k1_bindgen = ["p256k1/with_bindgen"]
+with_v1 = []
 
 [dependencies]
 aes-gcm = "0.10"
@@ -40,6 +41,7 @@ rand_chacha = "0.3.1"
 
 [[bench]]
 name = "v1_bench"
+required-features = ["with_v1"]
 harness = false
 
 [[bench]]
