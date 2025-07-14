@@ -1576,6 +1576,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn verify_packet_sigs_v1() {
         verify_packet_sigs::<FrostCoordinator<v1::Aggregator>, v1::Signer>();
     }

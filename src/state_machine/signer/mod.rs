@@ -12,10 +12,9 @@ use crate::{
         check_public_shares, validate_key_id, validate_signer_id, PolyCommitment, PublicNonce,
         TupleProof,
     },
-    compute,
     curve::{
         ecdsa,
-        point::{Compressed, Error as PointError, Point, G},
+        point::{Error as PointError, Point, G},
         scalar::Scalar,
     },
     errors::{DkgError, EncryptionError},
