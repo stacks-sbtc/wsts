@@ -700,7 +700,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     let Some(dkg_private_shares) =
                                         self.dkg_private_shares.get(bad_signer_id)
                                     else {
-                                        warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares , mark {signer_id} as malicious");
+                                        warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares, mark {signer_id} as malicious");
                                         self.malicious_dkg_signer_ids.insert(*signer_id);
                                         continue;
                                     };
