@@ -348,6 +348,8 @@ mod test {
             //.finalize(&secp, depositor_public_key)
             .expect("failed to finalize taproot_spend_info");
 
+        println!("TaprootSpendInfo {spend_info:?}");
+
         let spend_internal_key = spend_info.internal_key();
         let merkle_root = spend_info.merkle_root();
         let tweaked = depositor_keypair.tap_tweak(&secp, merkle_root);
@@ -400,6 +402,8 @@ mod test {
         let control_block = spend_info
             .control_block(&(reject_script.clone(), LeafVersion::TapScript))
             .expect("We just inserted the reject script into the tree");
+
+        println!("ControlBlock {control_block:?}");
 
         let reject_script_bytes = reject_script.to_bytes();
         let control_block_bytes = control_block.serialize();
