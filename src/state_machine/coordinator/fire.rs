@@ -1579,9 +1579,8 @@ pub mod test {
     }
 
     #[test]
-    #[cfg(feature = "with_v1")]
     fn dkg_public_share_v2() {
-        dkg_public_share::<v1::Aggregator, v1::Signer>();
+        dkg_public_share::<v2::Aggregator, v2::Signer>();
     }
 
     /// test basic insertion and detection of duplicates for DkgPublicShares
