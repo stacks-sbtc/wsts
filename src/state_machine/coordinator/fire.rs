@@ -619,14 +619,9 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 let Some(dkg_public_shares) =
                                     self.dkg_public_shares.get(bad_signer_id)
                                 else {
-<<<<<<< HEAD
-                                    warn!("Signer {signer_id} reported BadPublicShares from invalid signer_id {bad_signer_id}, mark {signer_id} as malicious");
-                                    self.malicious_dkg_signer_ids.insert(*signer_id);
-=======
                                     warn!("Signer {signer_id} reported BadPublicShares from {bad_signer_id} but there are no public shares from that signer, mark {signer_id} as malicious");
                                     self.malicious_dkg_signer_ids.insert(*signer_id);
                                     malicious_signer_ids.insert(*signer_id);
->>>>>>> 1f77ea8 (use ephemeral keys for DkgPrivateShares DH key exchange)
                                     continue;
                                 };
                                 let mut bad_party_ids = Vec::new();
@@ -656,30 +651,12 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             // bad_shares is a map of signer_id to BadPrivateShare
                             for (bad_signer_id, bad_private_share) in bad_shares {
                                 // verify the DH tuple proof first so we know the shared key is correct
-<<<<<<< HEAD
                                 let Some(signer_key_ids) =
                                     self.config.public_keys.signer_key_ids.get(signer_id)
                                 else {
                                     warn!("No key IDs for signer_id {signer_id} DkgEnd");
                                     continue;
                                 };
-                                let Some(signer_public_dsa_key) =
-                                    self.config.public_keys.signers.get(signer_id)
-                                else {
-                                    warn!("No public key for signer_id {signer_id} DkgEnd");
-                                    continue;
-                                };
-                                let signer_public_key = compute::point(signer_public_dsa_key)?;
-
-                                let Some(bad_signer_ecdsa_key) =
-                                    self.config.public_keys.signers.get(bad_signer_id)
-                                else {
-                                    warn!("Signer {signer_id} reported BadPrivateShare from invalid signer_id {bad_signer_id}, mark {signer_id} as malicious");
-                                    self.malicious_dkg_signer_ids.insert(*signer_id);
-                                    continue;
-                                };
-                                let bad_signer_public_key = compute::point(bad_signer_ecdsa_key)?;
-=======
                                 let Some(signer_public_shares) =
                                     self.dkg_public_shares.get(signer_id)
                                 else {
@@ -696,7 +673,6 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 };
                                 let bad_signer_public_key = bad_signer_public_shares.kex_public_key;
 
->>>>>>> 1f77ea8 (use ephemeral keys for DkgPrivateShares DH key exchange)
                                 let mut is_bad = false;
 
                                 if bad_private_share.tuple_proof.verify(
@@ -708,18 +684,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     let shared_secret =
                                         make_shared_secret_from_key(&bad_private_share.shared_key);
 
-<<<<<<< HEAD
-                                    let Some(bad_dkg_public_shares) =
-                                        self.dkg_public_shares.get(bad_signer_id)
-                                    else {
-                                        warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares, mark {signer_id} as malicious");
-                                        self.malicious_dkg_signer_ids.insert(*signer_id);
-                                        continue;
-                                    };
-                                    let dkg_public_shares = &bad_dkg_public_shares
-=======
                                     let polys = bad_signer_public_shares
->>>>>>> 1f77ea8 (use ephemeral keys for DkgPrivateShares DH key exchange)
                                         .comms
                                         .iter()
                                         .cloned()
@@ -727,17 +692,10 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     let Some(dkg_private_shares) =
                                         self.dkg_private_shares.get(bad_signer_id)
                                     else {
-<<<<<<< HEAD
                                         warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares, mark {signer_id} as malicious");
                                         self.malicious_dkg_signer_ids.insert(*signer_id);
                                         continue;
                                     };
-=======
-                                        warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but there are no private shares from {bad_signer_id}");
-                                        continue;
-                                    };
-                                    let signer_key_ids = &self.config.signer_key_ids[signer_id];
->>>>>>> 1f77ea8 (use ephemeral keys for DkgPrivateShares DH key exchange)
 
                                     for (src_party_id, key_shares) in &dkg_private_shares.shares {
                                         let Some(poly) = polys.get(src_party_id) else {
@@ -1623,7 +1581,7 @@ pub mod test {
     #[test]
     #[cfg(feature = "with_v1")]
     fn dkg_public_share_v2() {
-        dkg_public_share::<v1::Aggregator, v2::Signer>();
+        dkg_public_share::<v1::Aggregator, v1::Signer>();
     }
 
     /// test basic insertion and detection of duplicates for DkgPublicShares
@@ -1817,9 +1775,8 @@ pub mod test {
     }
 
     #[test]
-    #[cfg(feature = "with_v1")]
     fn sig_share_v2() {
-        sig_share::<v2::Aggregator, v1::Signer>();
+        sig_share::<v2::Aggregator, v2::Signer>();
     }
 
     /// test basic insertion and detection of duplicates for SignatureShareResponse
