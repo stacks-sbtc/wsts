@@ -12,14 +12,16 @@ use crate::{
         check_public_shares, validate_key_id, validate_signer_id, PolyCommitment, PublicNonce,
         TupleProof,
     },
+    compute,
     curve::{
-        point::{Compressed, Point, G},
+        ecdsa,
+        point::{Compressed, Error as PointError, Point, G},
         scalar::Scalar,
     },
     errors::{DkgError, EncryptionError},
     net::{
         BadPrivateShare, DkgBegin, DkgEnd, DkgEndBegin, DkgFailure, DkgPrivateBegin,
-        DkgPrivateShares, DkgPublicShares, DkgStatus, Message, NonceRequest, NonceResponse,
+        DkgPrivateShares, DkgPublicShares, DkgStatus, Message, NonceRequest, NonceResponse, Packet,
         SignatureShareRequest, SignatureShareResponse, SignatureType,
     },
     state_machine::{PublicKeys, StateMachine},
@@ -28,7 +30,7 @@ use crate::{
 };
 
 #[cfg(test)]
-use crate::net::{Packet, Signable};
+use crate::net::Signable;
 
 #[derive(Debug, Clone, PartialEq)]
 /// Signer states
@@ -94,6 +96,15 @@ pub enum Error {
     #[error("integer conversion error")]
     /// An error during integer conversion operations
     TryFromInt(#[from] TryFromIntError),
+    #[error("Missing coordinator public key")]
+    /// Missing coordinator public key
+    MissingCoordinatorPublicKey,
+    #[error("A packet had an invalid signature")]
+    /// A packet had an invalid signature
+    InvalidPacketSignature,
+    #[error("A curve point error {0}")]
+    /// A curve point error
+    Point(#[from] PointError),
 }
 
 /// The saved state required to reconstruct a signer
@@ -145,6 +156,10 @@ pub struct SavedState {
     pub dkg_private_begin_msg: Option<DkgPrivateBegin>,
     /// the DKG end begin message received in this round
     pub dkg_end_begin_msg: Option<DkgEndBegin>,
+    /// whether to verify the signature on Packets
+    pub verify_packet_sigs: bool,
+    /// coordinator public key
+    pub coordinator_public_key: Option<ecdsa::PublicKey>,
 }
 
 impl fmt::Debug for SavedState {
@@ -220,6 +235,10 @@ pub struct Signer<SignerType: SignerTrait> {
     pub dkg_private_begin_msg: Option<DkgPrivateBegin>,
     /// the DKG end begin message received in this round
     pub dkg_end_begin_msg: Option<DkgEndBegin>,
+    /// whether to verify the signature on Packets
+    pub verify_packet_sigs: bool,
+    /// coordinator public key
+    pub coordinator_public_key: Option<ecdsa::PublicKey>,
 }
 
 impl<SignerType: SignerTrait> fmt::Debug for Signer<SignerType> {
@@ -315,6 +334,8 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             dkg_private_shares: Default::default(),
             dkg_private_begin_msg: Default::default(),
             dkg_end_begin_msg: Default::default(),
+            verify_packet_sigs: true,
+            coordinator_public_key: None,
         })
     }
 
@@ -342,6 +363,8 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             dkg_private_shares: state.dkg_private_shares.clone(),
             dkg_private_begin_msg: state.dkg_private_begin_msg.clone(),
             dkg_end_begin_msg: state.dkg_end_begin_msg.clone(),
+            verify_packet_sigs: state.verify_packet_sigs,
+            coordinator_public_key: state.coordinator_public_key,
         }
     }
 
@@ -369,6 +392,8 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             dkg_private_shares: self.dkg_private_shares.clone(),
             dkg_private_begin_msg: self.dkg_private_begin_msg.clone(),
             dkg_end_begin_msg: self.dkg_end_begin_msg.clone(),
+            verify_packet_sigs: self.verify_packet_sigs,
+            coordinator_public_key: self.coordinator_public_key,
         }
     }
 
@@ -392,12 +417,12 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
     #[cfg(test)]
     pub fn process_inbound_messages<R: RngCore + CryptoRng>(
         &mut self,
-        messages: &[Packet],
+        packets: &[Packet],
         rng: &mut R,
     ) -> Result<Vec<Packet>, Error> {
         let mut responses = vec![];
-        for message in messages {
-            let outbounds = self.process(&message.msg, rng)?;
+        for packet in packets {
+            let outbounds = self.process(packet, rng)?;
             for out in outbounds {
                 let msg = Packet {
                     sig: out
@@ -414,10 +439,18 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
     /// process the passed incoming message, and return any outgoing messages needed in response
     pub fn process<R: RngCore + CryptoRng>(
         &mut self,
-        message: &Message,
+        packet: &Packet,
         rng: &mut R,
     ) -> Result<Vec<Message>, Error> {
-        let out_msgs = match message {
+        if self.verify_packet_sigs {
+            let Some(coordinator_public_key) = self.coordinator_public_key else {
+                return Err(Error::MissingCoordinatorPublicKey);
+            };
+            if !packet.verify(&self.public_keys, &coordinator_public_key) {
+                return Err(Error::InvalidPacketSignature);
+            }
+        }
+        let out_msgs = match &packet.msg {
             Message::DkgBegin(dkg_begin) => self.dkg_begin(dkg_begin, rng),
             Message::DkgPrivateBegin(dkg_private_begin) => {
                 self.dkg_private_begin(dkg_private_begin, rng)
@@ -882,10 +915,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             for (dst_key_id, private_share) in shares {
                 if active_key_ids.contains(dst_key_id) {
                     debug!("encrypting dkg private share for key_id {dst_key_id}");
-                    let compressed =
-                        Compressed::from(self.public_keys.key_ids[dst_key_id].to_bytes());
-                    // this should not fail as long as the public key above was valid
-                    let dst_public_key = Point::try_from(&compressed).unwrap();
+                    let dst_public_key = compute::point(&self.public_keys.key_ids[dst_key_id])?;
                     let shared_secret =
                         make_shared_secret(&self.network_private_key, &dst_public_key);
                     let encrypted_share = encrypt(&shared_secret, &private_share.to_bytes(), rng)?;
@@ -1505,27 +1535,44 @@ pub mod test {
         let mut signer =
             Signer::<SignerType>::new(1, 1, 1, 1, 0, vec![1], private_key, public_keys, &mut rng)
                 .unwrap();
+        signer.verify_packet_sigs = false;
         // can_dkg_end starts out as false
         assert!(!signer.can_dkg_end());
 
         // meet the conditions for DKG_END
         let dkg_begin = Message::DkgBegin(DkgBegin { dkg_id: 1 });
+        let dkg_begin_packet = Packet {
+            msg: dkg_begin,
+            sig: vec![],
+        };
         let dkg_public_shares = signer
-            .process(&dkg_begin, &mut rng)
+            .process(&dkg_begin_packet, &mut rng)
             .expect("failed to process DkgBegin");
+        let dkg_public_shares_packet = Packet {
+            msg: dkg_public_shares[0].clone(),
+            sig: vec![],
+        };
         let _ = signer
-            .process(&dkg_public_shares[0], &mut rng)
+            .process(&dkg_public_shares_packet, &mut rng)
             .expect("failed to process DkgPublicShares");
         let dkg_private_begin = Message::DkgPrivateBegin(DkgPrivateBegin {
             dkg_id: 1,
             signer_ids: vec![0],
             key_ids: vec![],
         });
+        let dkg_private_begin_packet = Packet {
+            msg: dkg_private_begin,
+            sig: vec![],
+        };
         let dkg_private_shares = signer
-            .process(&dkg_private_begin, &mut rng)
+            .process(&dkg_private_begin_packet, &mut rng)
             .expect("failed to process DkgBegin");
+        let dkg_private_shares_packet = Packet {
+            msg: dkg_private_shares[0].clone(),
+            sig: vec![],
+        };
         let _ = signer
-            .process(&dkg_private_shares[0], &mut rng)
+            .process(&dkg_private_shares_packet, &mut rng)
             .expect("failed to process DkgPrivateShares");
         let dkg_end_begin = DkgEndBegin {
             dkg_id: 1,
