@@ -327,7 +327,7 @@ mod test {
         let polys = match test_helpers::dkg(&mut signers, &mut rng) {
             Ok(polys) => polys,
             Err(secret_errors) => {
-                panic!("Got secret errors from DKG: {:?}", secret_errors);
+                panic!("Got secret errors from DKG: {secret_errors:?}");
             }
         };
 
@@ -348,7 +348,7 @@ mod test {
         println!("sign_verify: tweaked_key.x  {}", &tweaked_public_key.x());
         let (nonces, sig_shares) = test_helpers::sign(msg, &mut S, &mut rng, merkle_root);
         let proof = match sig_agg.sign_taproot(msg, &nonces, &sig_shares, &[], merkle_root) {
-            Err(e) => panic!("Aggregator sign failed: {:?}", e),
+            Err(e) => panic!("Aggregator sign failed: {e:?}"),
             Ok(proof) => proof,
         };
 
@@ -400,7 +400,7 @@ mod test {
         let polys = match test_helpers::dkg(&mut signers, &mut rng) {
             Ok(polys) => polys,
             Err(secret_errors) => {
-                panic!("Got secret errors from DKG: {:?}", secret_errors);
+                panic!("Got secret errors from DKG: {secret_errors:?}")
             }
         };
 
@@ -411,7 +411,7 @@ mod test {
         let tweaked_public_key = compute::tweaked_public_key(&sig_agg.poly[0], merkle_root);
         let (nonces, sig_shares) = test_helpers::sign(msg, &mut S, &mut rng, merkle_root);
         let proof = match sig_agg.sign_taproot(msg, &nonces, &sig_shares, &key_ids, merkle_root) {
-            Err(e) => panic!("Aggregator sign failed: {:?}", e),
+            Err(e) => panic!("Aggregator sign failed: {e:?}"),
             Ok(proof) => proof,
         };
 

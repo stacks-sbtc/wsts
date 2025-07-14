@@ -301,7 +301,7 @@ pub struct Aggregator {
     pub num_keys: u32,
     /// The threshold of signers needed to construct a valid signature
     pub threshold: u32,
-    /// The aggregate group polynomial; poly[0] is the group public key
+    /// The aggregate group polynomial; `poly[0]` is the group public key
     pub poly: Vec<Point>,
 }
 
@@ -942,7 +942,7 @@ mod tests {
         let comms = match traits::test_helpers::dkg(&mut signers, &mut rng) {
             Ok(comms) => comms,
             Err(secret_errors) => {
-                panic!("Got secret errors from DKG: {:?}", secret_errors);
+                panic!("Got secret errors from DKG: {secret_errors:?}");
             }
         };
 
@@ -954,7 +954,7 @@ mod tests {
 
             let (nonces, sig_shares) = v1::test_helpers::sign(msg, &mut signers, &mut rng);
             if let Err(e) = sig_agg.sign(msg, &nonces, &sig_shares, &[]) {
-                panic!("Aggregator sign failed: {:?}", e);
+                panic!("Aggregator sign failed: {e:?}");
             }
         }
     }

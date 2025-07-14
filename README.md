@@ -25,8 +25,8 @@ This crate uses the Bitcoin ```secp256k1``` curve.  But since the C ```libsecp25
 
 ## Documentation
 
-- [wsts crate docs in GitHub](https://trust-machines.github.io/wsts/wsts)
-- [WSTS Paper](https://trust-machines.github.io/wsts/wsts.pdf)
+- [wsts crate docs in GitHub](https://stacks-sbtc.github.io/wsts/wsts)
+- [WSTS Paper](https://stacks-sbtc.github.io/wsts/wsts.pdf)
 
 ## Copyright and License
 
