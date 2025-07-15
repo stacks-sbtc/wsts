@@ -286,7 +286,7 @@ mod test {
             .collect::<Vec<u32>>();
         let mut sig_agg = v2::Aggregator::new(num_keys, threshold);
         sig_agg.init(&polys).expect("aggregator init failed");
-        let wsts_public_key = sig_agg.poly[0].clone();
+        let wsts_public_key = sig_agg.poly[0];
         let wsts_public_key_bytes = wsts_public_key.x().to_bytes();
 
         // the sBTC accept script must be of the form
@@ -365,7 +365,7 @@ mod test {
 
         let schnorr_sig = secp.sign_schnorr(&message, &depositor_keypair);
         let taproot_sig = bitcoin::taproot::Signature {
-            signature: schnorr_sig.clone(),
+            signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
 
@@ -404,7 +404,7 @@ mod test {
         let schnorr_sig = bitcoin::secp256k1::schnorr::Signature::from_slice(&proof_bytes)
             .expect("Failed to parse Signature from slice");
         let taproot_sig = bitcoin::taproot::Signature {
-            signature: schnorr_sig.clone(),
+            signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
 
