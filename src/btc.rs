@@ -4,10 +4,10 @@ use bitcoin::{
     key::TapTweak,
     secp256k1::{self, Secp256k1, Verification, XOnlyPublicKey},
     sighash::{Prevouts, SighashCache},
-    taproot::Signature,
+    taproot::{LeafVersion, Signature},
     transaction::Version,
-    Amount, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash, TapSighashType,
-    Transaction, TxIn, TxOut, Witness,
+    Amount, OutPoint, Script, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
+    TapSighashType, Transaction, TxIn, TxOut, Witness,
 };
 
 use std::sync::LazyLock;
@@ -134,15 +134,16 @@ impl UnsignedTx {
     }
 
     /// Gets the sighash for the signers' input UTXO which needs to be signed
-    /// before the transaction can be broadcast, using a script spend from the passed leaf
-    pub fn compute_script_sighash<C: Verification, S: Into<TapLeafHash>>(
+    /// before the transaction can be broadcast, using a script spend from the passed script
+    pub fn compute_script_sighash<C: Verification>(
         &self,
         secp: &Secp256k1<C>,
         merkle_root: Option<TapNodeHash>,
-        leaf_hash: S,
+        script: &Script,
     ) -> Result<TapSighash, Error> {
         let prevouts = [self.utxo.as_tx_output(secp, merkle_root)];
         let mut sighasher = SighashCache::new(&self.tx);
+        let leaf_hash = TapLeafHash::from_script(script, LeafVersion::TapScript);
 
         sighasher
             .taproot_script_spend_signature_hash(
@@ -381,9 +382,8 @@ mod test {
             //.expect("signature verification failed");
             .expect_err("signature verification succeeded when it should have failed");
 
-        let leaf_hash = TapLeafHash::from_script(&reject_script, LeafVersion::TapScript);
         let tapsig = unsigned
-            .compute_script_sighash(&secp, merkle_root, leaf_hash)
+            .compute_script_sighash(&secp, merkle_root, &reject_script)
             .expect("failed to compute taproot sighash");
 
         // Sign the taproot sighash.
