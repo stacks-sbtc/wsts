@@ -297,9 +297,6 @@ mod test {
 
         let sbtc_payload = [255u8; 159];
         let mut push_bytes = PushBytesBuf::new();
-        push_bytes
-            .push(sbtc_payload.len().try_into().unwrap())
-            .unwrap();
         push_bytes.extend_from_slice(&sbtc_payload).unwrap();
 
         let accept_script = Builder::new()
