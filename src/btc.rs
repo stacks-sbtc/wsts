@@ -228,7 +228,7 @@ impl UnsignedTx {
 mod test {
     use super::*;
     use crate::{
-        compute, curve,
+        compute,
         taproot::{test_helpers, SchnorrProof},
         traits::{Aggregator, Signer},
         v2,
@@ -335,10 +335,7 @@ mod test {
         let nums_x_data =
             hex::decode("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0")
                 .unwrap();
-        let nums_x = curve::field::Element::try_from(nums_x_data.as_slice()).unwrap();
-        let nums_key_point = curve::point::Point::lift_x(&nums_x).unwrap();
-        let nums_public_key =
-            bitcoin::XOnlyPublicKey::from_slice(&nums_key_point.x().to_bytes()).unwrap();
+        let nums_public_key = bitcoin::XOnlyPublicKey::from_slice(&nums_x_data).unwrap();
 
         let spend_info = TaprootBuilder::new()
             .add_leaf(1, accept_script.clone())
