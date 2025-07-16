@@ -293,9 +293,9 @@ mod test {
         //
         //     <sbtc_payload> DROP <signers_pubkey> CHECKSIGVERIFY
         //
-        // with 160-bytes of <sbtc_payload>
+        // with a variable sized  <sbtc_payload> up to 159-bytes
 
-        let sbtc_payload = [255u8; 160];
+        let sbtc_payload = [255u8; 159];
         let mut push_bytes = PushBytesBuf::new();
         push_bytes
             .push(sbtc_payload.len().try_into().unwrap())
