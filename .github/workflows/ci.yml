@@ -45,6 +45,7 @@ jobs:
       - name: Cargo Test
         id: cargo_test
         run: |
+          cargo test
           cargo test --features with_v1
 
   fmt:

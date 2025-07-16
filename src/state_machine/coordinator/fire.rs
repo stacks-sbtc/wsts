@@ -3563,6 +3563,7 @@ pub mod test {
     }
 
     #[test]
+    #[cfg(feature = "with_v1")]
     fn verify_packet_sigs_v1() {
         verify_packet_sigs::<FireCoordinator<v1::Aggregator>, v1::Signer>();
     }
