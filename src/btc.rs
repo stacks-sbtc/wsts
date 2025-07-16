@@ -356,7 +356,6 @@ mod test {
         let sighash = unsigned
             .compute_script_sighash(&secp, merkle_root, &reject_script)
             .expect("failed to compute taproot sighash");
-
         let message = secp256k1::Message::from_digest_slice(sighash.as_ref())
             .expect("Failed to create message");
 
@@ -385,12 +384,8 @@ mod test {
         let sighash = unsigned
             .compute_script_sighash(&secp, merkle_root, &accept_script)
             .expect("failed to compute taproot sighash");
-
-        let _raw_merkle_root = merkle_root.map(|root| {
-            let bytes: [u8; 32] = *root.to_raw_hash().as_ref();
-            bytes
-        });
         let message: &[u8] = sighash.as_ref();
+
         let (nonces, sig_shares) =
             test_helpers::sign_schnorr(message, &mut signing_set, &mut OsRng);
         let proof = match sig_agg.sign_schnorr(message, &nonces, &sig_shares, &key_ids) {
