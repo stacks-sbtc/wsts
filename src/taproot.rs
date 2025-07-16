@@ -115,7 +115,6 @@ pub mod test_helpers {
         }
     }
 
-    #[allow(non_snake_case)]
     fn sign_params<RNG: RngCore + CryptoRng, Signer: traits::Signer>(
         signers: &mut [Signer],
         rng: &mut RNG,
@@ -132,7 +131,6 @@ pub mod test_helpers {
     }
 
     /// Run a signing round for the passed `msg`
-    #[allow(non_snake_case)]
     pub fn sign<RNG: RngCore + CryptoRng, Signer: traits::Signer>(
         msg: &[u8],
         signers: &mut [Signer],
@@ -149,7 +147,6 @@ pub mod test_helpers {
     }
 
     /// Run a signing round for the passed `msg`
-    #[allow(non_snake_case)]
     pub fn sign_schnorr<RNG: RngCore + CryptoRng, Signer: traits::Signer>(
         msg: &[u8],
         signers: &mut [Signer],
