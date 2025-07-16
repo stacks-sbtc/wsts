@@ -1,6 +1,4 @@
 # Update apt
 sudo apt-get update
-# Install LaTeX
-sudo apt-get install texlive
-# Install LaTeX Extra
-sudo apt-get install texlive-latex-extra
+# Install LaTeX base and extra packages
+sudo apt-get install texlive texlive-latex-extra
