@@ -157,7 +157,7 @@ impl UnsignedTx {
 
     /// Tests if the provided taproot [`Signature`] is valid for spending the
     /// signers' UTXO. This function will return  [`Error::BitcoinConsensus`]
-    /// error if the signature fails verification, passing the underlying error
+    /// error if the transaction fails verification, passing the underlying error
     /// from [`bitcoinconsensus`].
     pub fn verify_signature<C: Verification>(
         &self,
@@ -169,9 +169,9 @@ impl UnsignedTx {
         self.verify_witness(secp, witness, merkle_root)
     }
 
-    /// Tests if the provided taproot [`Signature`] is valid for spending the
+    /// Tests if the provided taproot [`Witness`] is valid for spending the
     /// signers' UTXO. This function will return  [`Error::BitcoinConsensus`]
-    /// error if the signature fails verification, passing the underlying error
+    /// error if the transaction fails verification, passing the underlying error
     /// from [`bitcoinconsensus`].
     pub fn verify_witness<C: Verification>(
         &self,
