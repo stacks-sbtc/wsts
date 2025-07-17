@@ -115,7 +115,6 @@ pub mod test_helpers {
         }
     }
 
-    #[allow(non_snake_case)]
     fn sign_params<RNG: RngCore + CryptoRng, Signer: traits::Signer>(
         signers: &mut [Signer],
         rng: &mut RNG,
@@ -132,7 +131,6 @@ pub mod test_helpers {
     }
 
     /// Run a signing round for the passed `msg`
-    #[allow(non_snake_case)]
     pub fn sign<RNG: RngCore + CryptoRng, Signer: traits::Signer>(
         msg: &[u8],
         signers: &mut [Signer],
@@ -143,6 +141,21 @@ pub mod test_helpers {
         let shares = signers
             .iter()
             .flat_map(|s| s.sign_taproot(msg, &signer_ids, &key_ids, &nonces, merkle_root))
+            .collect();
+
+        (nonces, shares)
+    }
+
+    /// Run a signing round for the passed `msg`
+    pub fn sign_schnorr<RNG: RngCore + CryptoRng, Signer: traits::Signer>(
+        msg: &[u8],
+        signers: &mut [Signer],
+        rng: &mut RNG,
+    ) -> (Vec<PublicNonce>, Vec<SignatureShare>) {
+        let (signer_ids, key_ids, nonces) = sign_params(signers, rng);
+        let shares = signers
+            .iter()
+            .flat_map(|s| s.sign_schnorr(msg, &signer_ids, &key_ids, &nonces))
             .collect();
 
         (nonces, shares)
