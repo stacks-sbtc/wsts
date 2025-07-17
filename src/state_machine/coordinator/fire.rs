@@ -1499,7 +1499,7 @@ pub mod test {
                     empty_private_shares, empty_public_shares, equal_after_save_load,
                     feedback_messages, feedback_mutated_messages, gen_nonces, invalid_nonce,
                     new_coordinator, run_dkg_sign, setup, setup_with_timeouts, start_dkg_round,
-                    verify_packet_sigs,
+                    start_signing_round, verify_packet_sigs,
                 },
                 Config, Coordinator as CoordinatorTrait, State,
             },
@@ -1557,6 +1557,19 @@ pub mod test {
     fn start_dkg_round_v2() {
         start_dkg_round::<FireCoordinator<v2::Aggregator>>(None);
         start_dkg_round::<FireCoordinator<v2::Aggregator>>(Some(12345u64));
+    }
+
+    #[test]
+    #[cfg(feature = "with_v1")]
+    fn start_signing_round_v1() {
+        start_signing_round::<FireCoordinator<v1::Aggregator>>(None);
+        start_signing_round::<FireCoordinator<v1::Aggregator>>(Some(12345u64));
+    }
+
+    #[test]
+    fn start_signing_round_v2() {
+        start_signing_round::<FireCoordinator<v2::Aggregator>>(None);
+        start_signing_round::<FireCoordinator<v2::Aggregator>>(Some(12345u64));
     }
 
     #[test]

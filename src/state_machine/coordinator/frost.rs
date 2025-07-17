@@ -1007,7 +1007,8 @@ pub mod test {
             test::{
                 bad_signature_share_request, check_signature_shares, coordinator_state_machine,
                 empty_private_shares, empty_public_shares, equal_after_save_load, invalid_nonce,
-                new_coordinator, run_dkg_sign, setup, start_dkg_round, verify_packet_sigs,
+                new_coordinator, run_dkg_sign, setup, start_dkg_round, start_signing_round,
+                verify_packet_sigs,
             },
             Config, Coordinator as CoordinatorTrait, State,
         },
@@ -1060,6 +1061,19 @@ pub mod test {
     fn start_dkg_round_v2() {
         start_dkg_round::<FrostCoordinator<v2::Aggregator>>(None);
         start_dkg_round::<FrostCoordinator<v2::Aggregator>>(Some(12345u64));
+    }
+
+    #[test]
+    #[cfg(feature = "with_v1")]
+    fn start_signing_round_v1() {
+        start_signing_round::<FrostCoordinator<v1::Aggregator>>(None);
+        start_signing_round::<FrostCoordinator<v1::Aggregator>>(Some(12345u64));
+    }
+
+    #[test]
+    fn start_signing_round_v2() {
+        start_signing_round::<FrostCoordinator<v2::Aggregator>>(None);
+        start_signing_round::<FrostCoordinator<v2::Aggregator>>(Some(12345u64));
     }
 
     #[test]

@@ -508,6 +508,9 @@ pub mod test {
         let mut rng = create_rng();
         let config = Config::new(10, 40, 28, Scalar::random(&mut rng));
         let mut coordinator = Coordinator::new(config);
+
+        coordinator.set_aggregate_public_key(Some(Point::new()));
+
         let msg = "It was many and many a year ago, in a kingdom by the sea"
             .as_bytes()
             .to_vec();
@@ -519,9 +522,9 @@ pub mod test {
         if let Message::NonceRequest(nonce_request) = result.unwrap().msg {
             if let Some(id) = sign_id {
                 assert_eq!(
-                    nonce_request.dkg_id, id,
+                    nonce_request.sign_id, id,
                     "Bad dkg_id {} expected {id}",
-                    nonce_request.dkg_id
+                    nonce_request.sign_id
                 );
             } else {
                 assert_eq!(
