@@ -77,9 +77,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                             // We have already processed this DKG round
                             return Ok((None, None));
                         }
-                        // Set the current sign id to one before the current message to ensure
-                        // that we start the next round at the correct id. (Do this rather
-                        // then overwriting afterwards to ensure logging is accurate)
+                        // use dkg_id from DkgBegin
                         let packet = self.start_dkg_round(Some(dkg_begin.dkg_id))?;
                         return Ok((Some(packet), None));
                     } else if let Message::NonceRequest(nonce_request) = &packet.msg {
