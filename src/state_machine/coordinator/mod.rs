@@ -1922,7 +1922,7 @@ pub mod test {
         let OperationResult::SignTaproot(proof) = run_sign::<Coordinator, SignerType>(
             &mut coordinators,
             &mut signers,
-            &msg,
+            msg,
             SignatureType::Taproot(raw_merkle_root),
         ) else {
             panic!("taproot signature failed");
@@ -1948,7 +1948,7 @@ pub mod test {
         let OperationResult::SignSchnorr(proof) = run_sign::<Coordinator, SignerType>(
             &mut coordinators,
             &mut signers,
-            &msg,
+            msg,
             SignatureType::Schnorr,
         ) else {
             panic!("schnorr signature failed");
