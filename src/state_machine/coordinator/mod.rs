@@ -1875,8 +1875,8 @@ pub mod test {
     use bitcoin::{
         blockdata::script::Builder,
         opcodes::all::*,
-        secp256k1::{Secp256k1, XOnlyPublicKey},
-        taproot::{LeafVersion, TaprootBuilder},
+        secp256k1::{schnorr, Secp256k1, XOnlyPublicKey},
+        taproot::{self, LeafVersion, TaprootBuilder},
         TapSighashType, Witness,
     };
 
@@ -1928,9 +1928,9 @@ pub mod test {
             panic!("taproot signature failed");
         };
 
-        let schnorr_sig = bitcoin::secp256k1::schnorr::Signature::from_slice(&proof.to_bytes())
+        let schnorr_sig = schnorr::Signature::from_slice(&proof.to_bytes())
             .expect("Failed to parse Signature from slice");
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
@@ -1954,9 +1954,9 @@ pub mod test {
             panic!("schnorr signature failed");
         };
 
-        let schnorr_sig = bitcoin::secp256k1::schnorr::Signature::from_slice(&proof.to_bytes())
+        let schnorr_sig = schnorr::Signature::from_slice(&proof.to_bytes())
             .expect("Failed to parse Signature from slice");
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
