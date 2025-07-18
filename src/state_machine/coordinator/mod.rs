@@ -348,6 +348,7 @@ pub trait Coordinator: Clone + Debug + PartialEq + StateMachine<State, Error> {
         &mut self,
         message: &[u8],
         signature_type: SignatureType,
+        sign_id: Option<u64>,
     ) -> Result<Packet, Error>;
 
     /// Reset internal state
@@ -501,6 +502,42 @@ pub mod test {
         };
 
         assert_eq!(coordinator.get_state(), State::DkgPublicGather);
+    }
+
+    pub fn start_signing_round<Coordinator: CoordinatorTrait>(sign_id: Option<u64>) {
+        let mut rng = create_rng();
+        let config = Config::new(10, 40, 28, Scalar::random(&mut rng));
+        let mut coordinator = Coordinator::new(config);
+
+        coordinator.set_aggregate_public_key(Some(Point::new()));
+
+        let msg = "It was many and many a year ago, in a kingdom by the sea"
+            .as_bytes()
+            .to_vec();
+        let signature_type = SignatureType::Schnorr;
+        let result = coordinator.start_signing_round(&msg, signature_type, sign_id);
+
+        assert!(result.is_ok());
+
+        if let Message::NonceRequest(nonce_request) = result.unwrap().msg {
+            if let Some(id) = sign_id {
+                assert_eq!(
+                    nonce_request.sign_id, id,
+                    "Bad dkg_id {} expected {id}",
+                    nonce_request.sign_id
+                );
+            } else {
+                assert_eq!(
+                    nonce_request.sign_id, 1,
+                    "Bad dkg_id {} expected 1",
+                    nonce_request.sign_id
+                );
+            }
+        } else {
+            panic!("coordinator.start_signing_round didn't return NonceRequest");
+        };
+
+        assert_eq!(coordinator.get_state(), State::NonceGather(signature_type));
     }
 
     pub fn setup<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
@@ -829,7 +866,7 @@ pub mod test {
         let message = coordinators
             .first_mut()
             .unwrap()
-            .start_signing_round(msg, signature_type)
+            .start_signing_round(msg, signature_type, None)
             .unwrap();
         assert_eq!(
             coordinators.first_mut().unwrap().get_state(),
@@ -1230,7 +1267,7 @@ pub mod test {
         let message = coordinators
             .first_mut()
             .unwrap()
-            .start_signing_round(&msg, signature_type)
+            .start_signing_round(&msg, signature_type, None)
             .unwrap();
         assert_eq!(
             coordinators.first_mut().unwrap().get_state(),
@@ -1350,7 +1387,7 @@ pub mod test {
         let message = coordinators
             .first_mut()
             .unwrap()
-            .start_signing_round(&msg, signature_type)
+            .start_signing_round(&msg, signature_type, None)
             .unwrap();
         assert_eq!(
             coordinators.first_mut().unwrap().get_state(),
@@ -1418,7 +1455,7 @@ pub mod test {
         let message = coordinators
             .first_mut()
             .unwrap()
-            .start_signing_round(&msg, signature_type)
+            .start_signing_round(&msg, signature_type, None)
             .unwrap();
         assert_eq!(
             coordinators.first_mut().unwrap().get_state(),
@@ -1517,7 +1554,7 @@ pub mod test {
         let message = coordinators
             .first_mut()
             .unwrap()
-            .start_signing_round(&msg, signature_type)
+            .start_signing_round(&msg, signature_type, None)
             .unwrap();
         assert_eq!(
             coordinators.first_mut().unwrap().get_state(),
