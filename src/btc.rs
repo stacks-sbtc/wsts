@@ -240,7 +240,8 @@ mod test {
             script::{Builder, PushBytesBuf},
         },
         opcodes::all::*,
-        taproot::{LeafVersion, TaprootBuilder},
+        secp256k1::schnorr,
+        taproot::{self, LeafVersion, TaprootBuilder},
     };
     use rand_core::OsRng;
 
@@ -332,7 +333,7 @@ mod test {
         let nums_x_data =
             hex::decode("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0")
                 .unwrap();
-        let nums_public_key = bitcoin::XOnlyPublicKey::from_slice(&nums_x_data).unwrap();
+        let nums_public_key = XOnlyPublicKey::from_slice(&nums_x_data).unwrap();
 
         let spend_info = TaprootBuilder::new()
             .add_leaf(1, accept_script.clone())
@@ -357,7 +358,7 @@ mod test {
             .expect("Failed to create message");
 
         let schnorr_sig = secp.sign_schnorr(&message, &depositor_keypair);
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
@@ -390,9 +391,9 @@ mod test {
             Ok(proof) => proof,
         };
         let proof_bytes = proof.to_bytes();
-        let schnorr_sig = bitcoin::secp256k1::schnorr::Signature::from_slice(&proof_bytes)
+        let schnorr_sig = schnorr::Signature::from_slice(&proof_bytes)
             .expect("Failed to parse Signature from slice");
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
@@ -448,7 +449,7 @@ mod test {
 
         // [1] Verify the correct signature, which should succeed.
         let schnorr_sig = secp.sign_schnorr(&message, &tweaked.to_keypair());
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
@@ -458,7 +459,7 @@ mod test {
 
         // [2] Verify the correct signature, but with a different sighash type,
         // which should fail.
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::None,
         };
@@ -470,7 +471,7 @@ mod test {
         // which should fail. In this case we've created the signature using
         // the untweaked keypair.
         let schnorr_sig = secp.sign_schnorr(&message, &keypair);
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
@@ -483,7 +484,7 @@ mod test {
         let secret_key = secp256k1::SecretKey::new(&mut OsRng);
         let keypair = secp256k1::Keypair::from_secret_key(&secp, &secret_key);
         let schnorr_sig = secp.sign_schnorr(&message, &keypair);
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
@@ -494,7 +495,7 @@ mod test {
         // [5] Same as [4], but using its tweaked key.
         let tweaked = keypair.tap_tweak(&secp, merkle_root);
         let schnorr_sig = secp.sign_schnorr(&message, &tweaked.to_keypair());
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
@@ -573,9 +574,9 @@ mod test {
         assert!(proof_deser.verify(&tweaked_public_key.x(), message));
 
         // [1] Verify the correct signature, which should succeed.
-        let schnorr_sig = bitcoin::secp256k1::schnorr::Signature::from_slice(&proof_bytes)
+        let schnorr_sig = schnorr::Signature::from_slice(&proof_bytes)
             .expect("Failed to parse Signature from slice");
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::All,
         };
@@ -585,7 +586,7 @@ mod test {
 
         // [2] Verify the correct signature, but with a different sighash type,
         // which should fail.
-        let taproot_sig = bitcoin::taproot::Signature {
+        let taproot_sig = taproot::Signature {
             signature: schnorr_sig,
             sighash_type: TapSighashType::None,
         };
