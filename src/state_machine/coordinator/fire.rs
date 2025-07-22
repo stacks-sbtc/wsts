@@ -594,6 +594,8 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         }
 
         let mut dkg_failures = HashMap::new();
+        // this will be used to report signers who were malicious in this DKG round, as opposed to
+        // self.self.malicious_dkg_signer_ids which contains all DKG signers who were ever malicious
         let mut malicious_signer_ids = HashSet::new();
         let threshold: usize = self.config.threshold.try_into().unwrap();
         if self.dkg_wait_signer_ids.is_empty() {
