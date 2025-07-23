@@ -1040,18 +1040,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             return Ok(vec![]);
         };
 
-        let Some(signer_key_ids) = self.public_keys.signer_key_ids.get(&src_signer_id) else {
-            warn!(%src_signer_id, "No key_ids configured");
-            return Ok(vec![]);
-        };
-
-        let Some(signer_key_id) = signer_key_ids.iter().next() else {
-            warn!(%src_signer_id, "No key_ids configured");
-            return Ok(vec![]);
-        };
-
-        let Some(kex_public_key) = self.kex_public_keys.get(signer_key_id) else {
-            warn!(%signer_key_id, "No KEX public key configured");
+        let Ok(kex_public_key) = self.get_kex_public_key(src_signer_id) else {
             return Ok(vec![]);
         };
 
@@ -1078,7 +1067,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         let key_ids: HashSet<u32> = self.signer.get_key_ids().into_iter().collect();
 
         let shared_key = self.kex_private_key * kex_public_key;
-        let shared_secret = make_shared_secret(&self.kex_private_key, kex_public_key);
+        let shared_secret = make_shared_secret(&self.kex_private_key, &kex_public_key);
 
         for (src_id, shares) in &dkg_private_shares.shares {
             let mut decrypted_shares = HashMap::new();
