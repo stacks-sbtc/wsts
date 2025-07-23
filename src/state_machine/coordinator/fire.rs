@@ -608,7 +608,6 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                     match dkg_failure {
                         DkgFailure::BadState => {
                             // signer should not be in a bad state so treat as malicious
-                            self.malicious_dkg_signer_ids.insert(*signer_id);
                             malicious_signer_ids.insert(*signer_id);
                         }
                         DkgFailure::Threshold => {
@@ -622,7 +621,6 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     self.dkg_public_shares.get(bad_signer_id)
                                 else {
                                     warn!("Signer {signer_id} reported BadPublicShares from {bad_signer_id} but there are no public shares from that signer, mark {signer_id} as malicious");
-                                    self.malicious_dkg_signer_ids.insert(*signer_id);
                                     malicious_signer_ids.insert(*signer_id);
                                     continue;
                                 };
@@ -640,11 +638,9 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 // if none of the shares were bad sender was malicious
                                 if bad_party_ids.is_empty() {
                                     warn!("Signer {signer_id} reported BadPublicShares from {bad_signer_id} but the shares were valid, mark {signer_id} as malicious");
-                                    self.malicious_dkg_signer_ids.insert(*signer_id);
                                     malicious_signer_ids.insert(*signer_id);
                                 } else {
                                     warn!("Signer {signer_id} reported BadPublicShares from {bad_signer_id}, mark {bad_signer_id} as malicious");
-                                    self.malicious_dkg_signer_ids.insert(*bad_signer_id);
                                     malicious_signer_ids.insert(*bad_signer_id);
                                 }
                             }
@@ -695,7 +691,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                         self.dkg_private_shares.get(bad_signer_id)
                                     else {
                                         warn!("Signer {signer_id} reported BadPrivateShare from signer {bad_signer_id} who didn't send public shares, mark {signer_id} as malicious");
-                                        self.malicious_dkg_signer_ids.insert(*signer_id);
+                                        malicious_signer_ids.insert(*signer_id);
                                         continue;
                                     };
 
@@ -754,11 +750,9 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 // if none of the shares were bad sender was malicious
                                 if !is_bad {
                                     warn!("Signer {signer_id} reported BadPrivateShare from {bad_signer_id} but the shares were valid, mark {signer_id} as malicious");
-                                    self.malicious_dkg_signer_ids.insert(*signer_id);
                                     malicious_signer_ids.insert(*signer_id);
                                 } else {
                                     warn!("Signer {signer_id} reported BadPrivateShare from {bad_signer_id}, mark {bad_signer_id} as malicious");
-                                    self.malicious_dkg_signer_ids.insert(*bad_signer_id);
                                     malicious_signer_ids.insert(*bad_signer_id);
                                 }
                             }
@@ -772,6 +766,11 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                     }
                 }
             }
+
+            for id in &malicious_signer_ids {
+                self.malicious_dkg_signer_ids.insert(*id);
+            }
+
             if dkg_failures.is_empty() {
                 debug!("no dkg failures");
                 self.dkg_end_gathered()?;
