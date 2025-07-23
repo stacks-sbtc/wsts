@@ -705,7 +705,10 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                             continue;
                                         };
                                         for key_id in signer_key_ids {
-                                            let bytes = &key_shares[key_id];
+                                            let Some(bytes) = key_shares.get(key_id) else {
+                                                warn!("DkgPrivateShares from party_id {src_party_id} did not include a share for key_id {key_id}");
+                                                continue;
+                                            };
                                             match decrypt(&shared_secret, bytes) {
                                                 Ok(plain) => match Scalar::try_from(&plain[..]) {
                                                     Ok(private_eval) => {
