@@ -127,10 +127,10 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                         if let Error::DkgFailure(dkg_failures, malicious_signer_ids) = error {
                             return Ok((
                                 None,
-                                Some(OperationResult::DkgError(DkgError::DkgEndFailure(
-                                    dkg_failures,
-                                    malicious_signer_ids,
-                                ))),
+                                Some(OperationResult::DkgError(DkgError::DkgEndFailure {
+                                    reported_failures: dkg_failures,
+                                    malicious_signers: malicious_signer_ids,
+                                })),
                             ));
                         } else {
                             return Err(error);

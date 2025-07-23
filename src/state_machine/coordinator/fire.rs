@@ -282,10 +282,10 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                         if let Error::DkgFailure(dkg_failures, malicious_signer_ids) = error {
                             return Ok((
                                 None,
-                                Some(OperationResult::DkgError(DkgError::DkgEndFailure(
-                                    dkg_failures,
-                                    malicious_signer_ids,
-                                ))),
+                                Some(OperationResult::DkgError(DkgError::DkgEndFailure {
+                                    reported_failures: dkg_failures,
+                                    malicious_signers: malicious_signer_ids,
+                                })),
                             ));
                         } else {
                             return Err(error);
@@ -2556,8 +2556,10 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map, _)) =
-            &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure {
+            reported_failures: failure_map,
+            ..
+        }) = &operation_results[0]
         else {
             panic!("Expected OperationResult::DkgError(DkgError::DkgEndFailure");
         };
@@ -2666,8 +2668,10 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map, _)) =
-            &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure {
+            reported_failures: failure_map,
+            ..
+        }) = &operation_results[0]
         else {
             panic!("Expected OperationResult::DkgError(DkgError::DkgEndFailure)");
         };
@@ -3451,8 +3455,10 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map, malicious_signer_ids)) =
-            &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure {
+            reported_failures: failure_map,
+            malicious_signers: malicious_signer_ids,
+        }) = &operation_results[0]
         else {
             panic!(
                 "Expected OperationResult::DkgError(DkgError::DkgEndFailure), got {:?}",
@@ -3568,8 +3574,10 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &[packet]);
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(failure_map, _)) =
-            &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure {
+            reported_failures: failure_map,
+            ..
+        }) = &operation_results[0]
         else {
             panic!("Expected DkgEndFailure got {:?}", operation_results[0]);
         };

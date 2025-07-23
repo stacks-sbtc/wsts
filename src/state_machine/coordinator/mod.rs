@@ -1742,8 +1742,10 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert_eq!(outbound_messages.len(), 0);
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(dkg_failures, _)) =
-            &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure {
+            reported_failures: dkg_failures,
+            ..
+        }) = &operation_results[0]
         else {
             panic!(
                 "Expected OperationResult::DkgError got {:?}",
@@ -1845,8 +1847,10 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert_eq!(outbound_messages.len(), 0);
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(dkg_failures, _)) =
-            &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure {
+            reported_failures: dkg_failures,
+            ..
+        }) = &operation_results[0]
         else {
             panic!(
                 "Expected OperationResult::DkgError(DkgError::DkgEndFailure) got {:?}",
