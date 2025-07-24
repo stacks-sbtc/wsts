@@ -1748,8 +1748,7 @@ pub mod test {
         assert_eq!(outbound_messages.len(), 0);
         assert_eq!(operation_results.len(), 1);
         let OperationResult::DkgError(DkgError::DkgEndFailure {
-            reported_failures: dkg_failures,
-            ..
+            reported_failures, ..
         }) = &operation_results[0]
         else {
             panic!(
@@ -1758,13 +1757,13 @@ pub mod test {
             );
         };
         assert_eq!(
-            dkg_failures.len(),
+            reported_failures.len(),
             num_signers as usize,
             "Expected {num_signers} DkgFailures got {}",
-            dkg_failures.len()
+            reported_failures.len()
         );
         let expected_signer_ids = (0..1).collect::<HashSet<u32>>();
-        for dkg_failure in dkg_failures {
+        for dkg_failure in reported_failures {
             let (_, DkgFailure::MissingPublicShares(signer_ids)) = dkg_failure else {
                 panic!("Expected DkgFailure::MissingPublicShares got {dkg_failure:?}");
             };
@@ -1853,8 +1852,7 @@ pub mod test {
         assert_eq!(outbound_messages.len(), 0);
         assert_eq!(operation_results.len(), 1);
         let OperationResult::DkgError(DkgError::DkgEndFailure {
-            reported_failures: dkg_failures,
-            ..
+            reported_failures, ..
         }) = &operation_results[0]
         else {
             panic!(
@@ -1863,13 +1861,13 @@ pub mod test {
             );
         };
         assert_eq!(
-            dkg_failures.len(),
+            reported_failures.len(),
             num_signers as usize,
             "Expected {num_signers} DkgFailures got {}",
-            dkg_failures.len()
+            reported_failures.len()
         );
         let expected_signer_ids = (0..1).collect::<HashSet<u32>>();
-        for dkg_failure in dkg_failures {
+        for dkg_failure in reported_failures {
             let (_, DkgFailure::MissingPrivateShares(signer_ids)) = dkg_failure else {
                 panic!("Expected DkgFailure::MissingPublicShares got {dkg_failure:?}");
             };
