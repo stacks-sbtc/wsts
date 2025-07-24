@@ -666,7 +666,8 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                 let Some(bad_signer_public_shares) =
                                     self.dkg_public_shares.get(bad_signer_id)
                                 else {
-                                    warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but there are no public shares from {bad_signer_id}");
+                                    warn!("Signer {signer_id} reported BadPrivateShares from {bad_signer_id} but there are no public shares from {bad_signer_id}, mark {signer_id} as malicious");
+                                    malicious_signer_ids.insert(*signer_id);
                                     continue;
                                 };
                                 let bad_signer_public_key = bad_signer_public_shares.kex_public_key;
