@@ -745,10 +745,10 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                                     }
                                 } else {
                                     warn!("TupleProof failed to verify, mark {signer_id} as malicious");
-                                    is_bad = true;
+                                    is_bad = false;
                                 }
 
-                                // if none of the shares were bad sender was malicious
+                                // if tuple proof failed or none of the shares were bad sender was malicious
                                 if !is_bad {
                                     warn!("Signer {signer_id} reported BadPrivateShare from {bad_signer_id} but the shares were valid, mark {signer_id} as malicious");
                                     malicious_signer_ids.insert(*signer_id);
