@@ -2567,14 +2567,13 @@ pub mod test {
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
         let OperationResult::DkgError(DkgError::DkgEndFailure {
-            reported_failures: failure_map,
-            ..
+            reported_failures, ..
         }) = &operation_results[0]
         else {
             panic!("Expected OperationResult::DkgError(DkgError::DkgEndFailure");
         };
 
-        for (_signer_id, dkg_failure) in failure_map {
+        for (_signer_id, dkg_failure) in reported_failures {
             let DkgFailure::BadPrivateShares(bad_share_map) = dkg_failure else {
                 panic!("Expected DkgFailure::BadPrivateShares");
             };
@@ -2679,14 +2678,13 @@ pub mod test {
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
         let OperationResult::DkgError(DkgError::DkgEndFailure {
-            reported_failures: failure_map,
-            ..
+            reported_failures, ..
         }) = &operation_results[0]
         else {
             panic!("Expected OperationResult::DkgError(DkgError::DkgEndFailure)");
         };
 
-        for (_signer_id, dkg_failure) in failure_map {
+        for (_signer_id, dkg_failure) in reported_failures {
             let DkgFailure::BadPublicShares(bad_shares) = dkg_failure else {
                 panic!("Expected DkgFailure::BadPublicShares");
             };
@@ -3466,8 +3464,8 @@ pub mod test {
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
         let OperationResult::DkgError(DkgError::DkgEndFailure {
-            reported_failures: failure_map,
-            malicious_signers: malicious_signer_ids,
+            reported_failures,
+            malicious_signers,
         }) = &operation_results[0]
         else {
             panic!(
@@ -3476,7 +3474,7 @@ pub mod test {
             );
         };
         for i in 1..10 {
-            match failure_map.get(&i) {
+            match reported_failures.get(&i) {
                 Some(DkgFailure::BadPublicShares(set)) => {
                     if set.len() != 1 {
                         panic!("signer {i} should have reported a single BadPublicShares");
@@ -3493,7 +3491,7 @@ pub mod test {
             }
         }
 
-        match failure_map.get(&0) {
+        match reported_failures.get(&0) {
             Some(DkgFailure::BadPublicShares(set)) => {
                 if set.len() != 9 {
                     panic!("signer 0 should have reported BadPublicShares from all others");
@@ -3511,9 +3509,9 @@ pub mod test {
             }
         }
 
-        if !malicious_signer_ids.len() == 1 || !malicious_signer_ids.contains(&0) {
+        if !malicious_signers.len() == 1 || !malicious_signers.contains(&0) {
             panic!(
-                "Coordinator should have marked signer 0 as malicious, instead marked {malicious_signer_ids:?}",
+                "Coordinator should have marked signer 0 as malicious, instead marked {malicious_signers:?}",
             );
         }
     }
@@ -3585,13 +3583,12 @@ pub mod test {
         assert!(outbound_messages.is_empty());
         assert_eq!(operation_results.len(), 1);
         let OperationResult::DkgError(DkgError::DkgEndFailure {
-            reported_failures: failure_map,
-            ..
+            reported_failures, ..
         }) = &operation_results[0]
         else {
             panic!("Expected DkgEndFailure got {:?}", operation_results[0]);
         };
-        for (signer_id, failure) in failure_map {
+        for (signer_id, failure) in reported_failures {
             assert!(
                 matches!(failure, DkgFailure::Threshold),
                 "{signer_id} had wrong failure {failure:?}"
