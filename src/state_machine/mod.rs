@@ -47,7 +47,12 @@ pub enum DkgError {
     DkgEndTimeout(Vec<u32>),
     /// DKG end failure
     #[error("DKG end failure")]
-    DkgEndFailure(HashMap<u32, DkgFailure>),
+    DkgEndFailure {
+        /// failures reported by signers during DkgEnd
+        reported_failures: HashMap<u32, DkgFailure>,
+        /// signers who were discovered to be malicious during this DKG round
+        malicious_signers: HashSet<u32>,
+    },
 }
 
 /// Sign errors

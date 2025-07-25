@@ -92,9 +92,14 @@ pub enum Error {
     /// Bad key IDs for signer
     #[error("Bad key IDs for signer {0}")]
     BadKeyIDsForSigner(u32),
-    /// DKG failure from signers
+    /// DKG failure from signers, with a map of signer_id to reported errors and new malicious signer_ids
     #[error("DKG failure from signers")]
-    DkgFailure(HashMap<u32, DkgFailure>),
+    DkgFailure {
+        /// failures reported by signers during DkgEnd
+        reported_failures: HashMap<u32, DkgFailure>,
+        /// signers who were discovered to be malicious during this DKG round
+        malicious_signers: HashSet<u32>,
+    },
     /// Aggregate key does not match supplied party polynomial
     #[error(
         "Aggregate key and computed key from party polynomials mismatch: got {0}, expected {1}"
@@ -1707,6 +1712,7 @@ pub mod test {
                             dkg_id: shares.dkg_id,
                             signer_id: shares.signer_id,
                             comms: vec![],
+                            kex_public_key: Point::new(),
                         };
                         Packet {
                             msg: Message::DkgPublicShares(public_shares),
@@ -1741,8 +1747,9 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert_eq!(outbound_messages.len(), 0);
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(dkg_failures)) =
-            &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure {
+            reported_failures, ..
+        }) = &operation_results[0]
         else {
             panic!(
                 "Expected OperationResult::DkgError got {:?}",
@@ -1750,13 +1757,13 @@ pub mod test {
             );
         };
         assert_eq!(
-            dkg_failures.len(),
+            reported_failures.len(),
             num_signers as usize,
             "Expected {num_signers} DkgFailures got {}",
-            dkg_failures.len()
+            reported_failures.len()
         );
         let expected_signer_ids = (0..1).collect::<HashSet<u32>>();
-        for dkg_failure in dkg_failures {
+        for dkg_failure in reported_failures {
             let (_, DkgFailure::MissingPublicShares(signer_ids)) = dkg_failure else {
                 panic!("Expected DkgFailure::MissingPublicShares got {dkg_failure:?}");
             };
@@ -1844,8 +1851,9 @@ pub mod test {
             feedback_messages(&mut coordinators, &mut signers, &outbound_messages);
         assert_eq!(outbound_messages.len(), 0);
         assert_eq!(operation_results.len(), 1);
-        let OperationResult::DkgError(DkgError::DkgEndFailure(dkg_failures)) =
-            &operation_results[0]
+        let OperationResult::DkgError(DkgError::DkgEndFailure {
+            reported_failures, ..
+        }) = &operation_results[0]
         else {
             panic!(
                 "Expected OperationResult::DkgError(DkgError::DkgEndFailure) got {:?}",
@@ -1853,13 +1861,13 @@ pub mod test {
             );
         };
         assert_eq!(
-            dkg_failures.len(),
+            reported_failures.len(),
             num_signers as usize,
             "Expected {num_signers} DkgFailures got {}",
-            dkg_failures.len()
+            reported_failures.len()
         );
         let expected_signer_ids = (0..1).collect::<HashSet<u32>>();
-        for dkg_failure in dkg_failures {
+        for dkg_failure in reported_failures {
             let (_, DkgFailure::MissingPrivateShares(signer_ids)) = dkg_failure else {
                 panic!("Expected DkgFailure::MissingPublicShares got {dkg_failure:?}");
             };

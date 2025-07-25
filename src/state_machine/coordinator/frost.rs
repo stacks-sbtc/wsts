@@ -124,12 +124,17 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 }
                 State::DkgEndGather => {
                     if let Err(error) = self.gather_dkg_end(packet) {
-                        if let Error::DkgFailure(dkg_failures) = error {
+                        if let Error::DkgFailure {
+                            reported_failures,
+                            malicious_signers,
+                        } = error
+                        {
                             return Ok((
                                 None,
-                                Some(OperationResult::DkgError(DkgError::DkgEndFailure(
-                                    dkg_failures,
-                                ))),
+                                Some(OperationResult::DkgError(DkgError::DkgEndFailure {
+                                    reported_failures,
+                                    malicious_signers,
+                                })),
                             ));
                         } else {
                             return Err(error);
@@ -393,19 +398,22 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         }
 
         if self.ids_to_await.is_empty() {
-            let mut dkg_failures = HashMap::new();
+            let mut reported_failures = HashMap::new();
 
             for (signer_id, dkg_end) in &self.dkg_end_messages {
                 if let DkgStatus::Failure(dkg_failure) = &dkg_end.status {
                     warn!(%signer_id, ?dkg_failure, "DkgEnd failure");
-                    dkg_failures.insert(*signer_id, dkg_failure.clone());
+                    reported_failures.insert(*signer_id, dkg_failure.clone());
                 }
             }
 
-            if dkg_failures.is_empty() {
+            if reported_failures.is_empty() {
                 self.dkg_end_gathered()?;
             } else {
-                return Err(Error::DkgFailure(dkg_failures));
+                return Err(Error::DkgFailure {
+                    reported_failures,
+                    malicious_signers: Default::default(),
+                });
             }
         }
         Ok(())
@@ -1154,6 +1162,7 @@ pub mod test {
                     poly: vec![],
                 },
             )],
+            kex_public_key: Point::from(Scalar::random(&mut rng)),
         };
         let packet = Packet {
             msg: Message::DkgPublicShares(public_shares.clone()),
@@ -1173,6 +1182,7 @@ pub mod test {
                     poly: vec![],
                 },
             )],
+            kex_public_key: Point::from(Scalar::random(&mut rng)),
         };
         let dup_packet = Packet {
             msg: Message::DkgPublicShares(dup_public_shares.clone()),
