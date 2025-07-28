@@ -1,6 +1,6 @@
 [package]
 name = "wsts"
-version = "14.0.2"
+version = "15.0.0"
 edition = "2021"
 authors = ["Joey Yandle <xoloki@gmail.com>"]
 license = "Apache-2.0"
@@ -14,6 +14,7 @@ categories = ["cryptography"]
 default = ["with_p256k1_bindgen"]
 with_p256k1_bindgen = ["p256k1/with_bindgen"]
 with_v1 = []
+testing = []
 
 [dependencies]
 aes-gcm = "0.10"

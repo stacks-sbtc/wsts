@@ -28,7 +28,7 @@ use crate::{
     util::{decrypt, encrypt, make_shared_secret},
 };
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testing"))]
 use crate::net::Signable;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -432,7 +432,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
     }
 
     /// Process the slice of packets
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     pub fn process_inbound_messages<R: RngCore + CryptoRng>(
         &mut self,
         packets: &[Packet],
