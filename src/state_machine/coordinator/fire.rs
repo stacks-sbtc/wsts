@@ -1370,7 +1370,7 @@ impl<Aggregator: AggregatorTrait> CoordinatorTrait for Coordinator<Aggregator> {
         self.config.clone()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     fn get_config_mut(&mut self) -> &mut Config {
         &mut self.config
     }

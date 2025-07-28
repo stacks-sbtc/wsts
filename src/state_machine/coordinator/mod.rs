@@ -312,7 +312,7 @@ pub trait Coordinator: Clone + Debug + PartialEq + StateMachine<State, Error> {
     fn get_config(&self) -> Config;
 
     /// Retrieve a mutable reference to the config
-    #[cfg(test)]
+    #[cfg(any(test, feature = "testing"))]
     fn get_config_mut(&mut self) -> &mut Config;
 
     /// Set the coordinator public key
@@ -367,7 +367,7 @@ pub mod frost;
 pub mod fire;
 
 #[allow(missing_docs)]
-#[cfg(test)]
+#[cfg(any(test, feature = "testing"))]
 pub mod test {
     use hashbrown::{HashMap, HashSet};
     use rand_core::OsRng;
