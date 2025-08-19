@@ -1,6 +1,6 @@
 use crate::{
     common::Signature,
-    compute,
+    compute::{self, ExpansionType},
     curve::{
         field,
         point::{Point, G},
@@ -140,7 +140,16 @@ pub mod test_helpers {
         let (signer_ids, key_ids, nonces) = sign_params(signers, rng);
         let shares = signers
             .iter()
-            .flat_map(|s| s.sign_taproot(msg, &signer_ids, &key_ids, &nonces, merkle_root))
+            .flat_map(|s| {
+                s.sign_taproot(
+                    msg,
+                    &signer_ids,
+                    &key_ids,
+                    &nonces,
+                    merkle_root,
+                    ExpansionType::Default,
+                )
+            })
             .collect();
 
         (nonces, shares)
@@ -155,7 +164,9 @@ pub mod test_helpers {
         let (signer_ids, key_ids, nonces) = sign_params(signers, rng);
         let shares = signers
             .iter()
-            .flat_map(|s| s.sign_schnorr(msg, &signer_ids, &key_ids, &nonces))
+            .flat_map(|s| {
+                s.sign_schnorr(msg, &signer_ids, &key_ids, &nonces, ExpansionType::Default)
+            })
             .collect();
 
         (nonces, shares)
@@ -168,7 +179,13 @@ mod test {
 
     #[cfg(feature = "with_v1")]
     use crate::v1;
-    use crate::{compute, traits::Aggregator, traits::Signer, util::create_rng, v2};
+    use crate::{
+        compute::{self, ExpansionType},
+        traits::Aggregator,
+        traits::Signer,
+        util::create_rng,
+        v2,
+    };
 
     #[test]
     #[allow(non_snake_case)]
@@ -423,7 +440,14 @@ mod test {
         sig_agg.init(&polys).expect("aggregator init failed");
         let tweaked_public_key = compute::tweaked_public_key(&sig_agg.poly[0], merkle_root);
         let (nonces, sig_shares) = test_helpers::sign(msg, &mut S, &mut rng, merkle_root);
-        let proof = match sig_agg.sign_taproot(msg, &nonces, &sig_shares, &key_ids, merkle_root) {
+        let proof = match sig_agg.sign_taproot(
+            msg,
+            &nonces,
+            &sig_shares,
+            &key_ids,
+            merkle_root,
+            ExpansionType::Default,
+        ) {
             Err(e) => panic!("Aggregator sign failed: {e:?}"),
             Ok(proof) => proof,
         };

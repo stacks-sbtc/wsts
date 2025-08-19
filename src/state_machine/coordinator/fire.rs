@@ -1151,19 +1151,28 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                     &shares,
                     &key_ids,
                     merkle_root,
+                    self.config.expansion_type,
                 )?;
                 debug!("SchnorrProof ({}, {})", schnorr_proof.r, schnorr_proof.s);
                 self.schnorr_proof = Some(schnorr_proof);
             } else if let SignatureType::Schnorr = signature_type {
-                let schnorr_proof =
-                    self.aggregator
-                        .sign_schnorr(&self.message, &nonces, &shares, &key_ids)?;
+                let schnorr_proof = self.aggregator.sign_schnorr(
+                    &self.message,
+                    &nonces,
+                    &shares,
+                    &key_ids,
+                    self.config.expansion_type,
+                )?;
                 debug!("SchnorrProof ({}, {})", schnorr_proof.r, schnorr_proof.s);
                 self.schnorr_proof = Some(schnorr_proof);
             } else {
-                let signature = self
-                    .aggregator
-                    .sign(&self.message, &nonces, &shares, &key_ids)?;
+                let signature = self.aggregator.sign(
+                    &self.message,
+                    &nonces,
+                    &shares,
+                    &key_ids,
+                    self.config.expansion_type,
+                )?;
                 debug!("Signature ({}, {})", signature.R, signature.z);
                 self.signature = Some(signature);
             }
@@ -1192,7 +1201,12 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             .cloned()
             .flat_map(|pn| pn.nonces)
             .collect::<Vec<PublicNonce>>();
-        let (_, R) = compute::intermediate(&self.message, &party_ids, &nonces);
+        let (_, R) = compute::intermediate(
+            &self.message,
+            &party_ids,
+            &nonces,
+            self.config.expansion_type,
+        );
 
         R
     }

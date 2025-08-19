@@ -214,7 +214,13 @@ impl Party {
     }
 
     /// Sign `msg` with this party's share of the group private key, using the set of `signers` and corresponding `nonces`
-    pub fn sign(&self, msg: &[u8], signers: &[u32], nonces: &[PublicNonce]) -> SignatureShare {
+    pub fn sign(
+        &self,
+        msg: &[u8],
+        signers: &[u32],
+        nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
+    ) -> SignatureShare {
         let (_, aggregate_nonce) = compute::intermediate(msg, signers, nonces);
         let mut z = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
         z += compute::challenge(&self.group_key, &aggregate_nonce, msg)
@@ -235,6 +241,7 @@ impl Party {
         signers: &[u32],
         nonces: &[PublicNonce],
         aggregate_nonce: &Point,
+        expansion_type: ExpansionType,
     ) -> SignatureShare {
         self.sign_precomputed_with_tweak(msg, signers, nonces, aggregate_nonce, None)
     }
@@ -250,6 +257,7 @@ impl Party {
         nonces: &[PublicNonce],
         aggregate_nonce: &Point,
         tweak: Option<Scalar>,
+        expansion_type: ExpansionType,
     ) -> SignatureShare {
         let mut r = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
         if tweak.is_some() && !aggregate_nonce.has_even_y() {
@@ -317,13 +325,14 @@ impl Aggregator {
         nonces: &[PublicNonce],
         sig_shares: &[SignatureShare],
         tweak: Option<Scalar>,
+        expansion_type: ExpansionType,
     ) -> Result<(Point, Signature), AggregatorError> {
         if nonces.len() != sig_shares.len() {
             return Err(AggregatorError::BadNonceLen(nonces.len(), sig_shares.len()));
         }
 
         let signers: Vec<u32> = sig_shares.iter().map(|ss| ss.id).collect();
-        let (_Rs, R) = compute::intermediate(msg, &signers, nonces);
+        let (_Rs, R) = compute::intermediate(msg, &signers, nonces, expansion_type);
         let mut z = Scalar::zero();
         let mut cx_sign = Scalar::one();
         let aggregate_public_key = self.poly[0];
@@ -364,6 +373,7 @@ impl Aggregator {
         nonces: &[PublicNonce],
         sig_shares: &[SignatureShare],
         tweak: Option<Scalar>,
+        expansion_type: ExpansionType,
     ) -> AggregatorError {
         if nonces.len() != sig_shares.len() {
             return AggregatorError::BadNonceLen(nonces.len(), sig_shares.len());
@@ -460,13 +470,14 @@ impl traits::Aggregator for Aggregator {
         nonces: &[PublicNonce],
         sig_shares: &[SignatureShare],
         _key_ids: &[u32],
+        expansion_type: ExpansionType,
     ) -> Result<Signature, AggregatorError> {
-        let (key, sig) = self.sign_with_tweak(msg, nonces, sig_shares, None)?;
+        let (key, sig) = self.sign_with_tweak(msg, nonces, sig_shares, None, expansion_type)?;
 
         if sig.verify(&key, msg) {
             Ok(sig)
         } else {
-            Err(self.check_signature_shares(msg, nonces, sig_shares, None))
+            Err(self.check_signature_shares(msg, nonces, sig_shares, None, expansion_type))
         }
     }
 
@@ -477,9 +488,11 @@ impl traits::Aggregator for Aggregator {
         nonces: &[PublicNonce],
         sig_shares: &[SignatureShare],
         _key_ids: &[u32],
+        expansion_type: ExpansionType,
     ) -> Result<SchnorrProof, AggregatorError> {
         let tweak = Scalar::from(0);
-        let (key, sig) = self.sign_with_tweak(msg, nonces, sig_shares, Some(tweak))?;
+        let (key, sig) =
+            self.sign_with_tweak(msg, nonces, sig_shares, Some(tweak), expansion_type)?;
         let proof = SchnorrProof::new(&sig);
 
         if proof.verify(&key.x(), msg) {
@@ -497,9 +510,11 @@ impl traits::Aggregator for Aggregator {
         sig_shares: &[SignatureShare],
         _key_ids: &[u32],
         merkle_root: Option<[u8; 32]>,
+        expansion_type: ExpansionType,
     ) -> Result<SchnorrProof, AggregatorError> {
         let tweak = compute::tweak(&self.poly[0], merkle_root);
-        let (key, sig) = self.sign_with_tweak(msg, nonces, sig_shares, Some(tweak))?;
+        let (key, sig) =
+            self.sign_with_tweak(msg, nonces, sig_shares, Some(tweak), expansion_type)?;
         let proof = SchnorrProof::new(&sig);
 
         if proof.verify(&key.x(), msg) {
@@ -689,8 +704,9 @@ impl traits::Signer for Signer {
         _signer_ids: &[u32],
         key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> (Vec<Point>, Point) {
-        compute::intermediate(msg, key_ids, nonces)
+        compute::intermediate(msg, key_ids, nonces, expansion_type)
     }
 
     fn validate_party_id(
@@ -710,11 +726,13 @@ impl traits::Signer for Signer {
         _signer_ids: &[u32],
         key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> Vec<SignatureShare> {
-        let aggregate_nonce = compute::aggregate_nonce(msg, key_ids, nonces).unwrap();
+        let aggregate_nonce =
+            compute::aggregate_nonce(msg, key_ids, nonces, expansion_type).unwrap();
         self.parties
             .iter()
-            .map(|p| p.sign_precomputed(msg, key_ids, nonces, &aggregate_nonce))
+            .map(|p| p.sign_precomputed(msg, key_ids, nonces, &aggregate_nonce, expansion_type))
             .collect()
     }
 
@@ -725,13 +743,21 @@ impl traits::Signer for Signer {
         key_ids: &[u32],
         nonces: &[PublicNonce],
         merkle_root: Option<[u8; 32]>,
+        expansion_type: ExpansionType,
     ) -> Vec<SignatureShare> {
         let aggregate_nonce = compute::aggregate_nonce(msg, key_ids, nonces).unwrap();
         let tweak = compute::tweak(&self.parties[0].group_key, merkle_root);
         self.parties
             .iter()
             .map(|p| {
-                p.sign_precomputed_with_tweak(msg, key_ids, nonces, &aggregate_nonce, Some(tweak))
+                p.sign_precomputed_with_tweak(
+                    msg,
+                    key_ids,
+                    nonces,
+                    &aggregate_nonce,
+                    Some(tweak),
+                    expansion_type,
+                )
             })
             .collect()
     }
@@ -742,8 +768,10 @@ impl traits::Signer for Signer {
         _signer_ids: &[u32],
         key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> Vec<SignatureShare> {
-        let aggregate_nonce = compute::aggregate_nonce(msg, key_ids, nonces).unwrap();
+        let aggregate_nonce =
+            compute::aggregate_nonce(msg, key_ids, nonces, expansion_type).unwrap();
         self.parties
             .iter()
             .map(|p| {
@@ -753,6 +781,7 @@ impl traits::Signer for Signer {
                     nonces,
                     &aggregate_nonce,
                     Some(Scalar::from(0)),
+                    expansion_type,
                 )
             })
             .collect()

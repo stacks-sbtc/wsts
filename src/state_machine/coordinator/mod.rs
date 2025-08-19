@@ -1,5 +1,6 @@
 use crate::{
     common::{PolyCommitment, Signature, SignatureShare},
+    compute::ExpansionType,
     curve::{
         ecdsa,
         point::{Error as PointError, Point},
@@ -155,6 +156,8 @@ pub struct Config {
     pub public_keys: PublicKeys,
     /// whether to verify the signature on Packets
     pub verify_packet_sigs: bool,
+    /// How to expand the binding value when hashing
+    pub expansion_type: ExpansionType,
 }
 
 impl fmt::Debug for Config {
@@ -196,6 +199,7 @@ impl Config {
             sign_timeout: None,
             public_keys: Default::default(),
             verify_packet_sigs: true,
+            expansion_type: ExpansionType::Default,
         }
     }
 
@@ -227,6 +231,7 @@ impl Config {
             sign_timeout,
             public_keys,
             verify_packet_sigs: true,
+            expansion_type: ExpansionType::Default,
         }
     }
 }
@@ -376,7 +381,7 @@ pub mod test {
 
     use crate::{
         common::SignatureShare,
-        compute,
+        compute::{self, ExpansionType},
         curve::{ecdsa, point::Point, point::G, scalar::Scalar},
         errors::AggregatorError,
         net::{DkgFailure, Message, Packet, SignatureShareResponse, SignatureType},
@@ -627,6 +632,7 @@ pub mod test {
                     *private_key,
                     public_keys.clone(),
                     &mut rng,
+                    ExpansionType::Default,
                 )
                 .unwrap();
                 signer.verify_packet_sigs = false;

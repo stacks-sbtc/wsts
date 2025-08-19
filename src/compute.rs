@@ -12,18 +12,52 @@ use crate::{
     util::{expand_to_scalar, hash_to_scalar},
 };
 
-#[allow(non_snake_case)]
+/// What type of message expansion to use
+#[derive(Default, Clone, Copy, Debug, PartialEq)]
+pub enum ExpansionType {
+    /// Expand hash directly from bytes
+    #[default]
+    Default,
+    /// Expand hash using XMD
+    Xmd,
+}
+
 /// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
-pub fn binding_xmd(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
+pub fn binding(
+    id: &Scalar,
+    public_nonces: &[PublicNonce],
+    msg: &[u8],
+    expansion_type: ExpansionType,
+) -> Scalar {
+    match expansion_type {
+        ExpansionType::Default => binding_default(id, public_nonces, msg),
+        ExpansionType::Xmd => binding_xmd(id, public_nonces, msg),
+    }
+}
+/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
+pub fn binding_compressed(
+    id: &Scalar,
+    public_nonces: &[(Compressed, Compressed)],
+    msg: &[u8],
+    expansion_type: ExpansionType,
+) -> Scalar {
+    match expansion_type {
+        ExpansionType::Default => binding_compressed_default(id, public_nonces, msg),
+        ExpansionType::Xmd => binding_compressed_xmd(id, public_nonces, msg),
+    }
+}
+
+/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
+pub fn binding_xmd(id: &Scalar, public_nonces: &[PublicNonce], msg: &[u8]) -> Scalar {
     let prefix = b"WSTS/binding";
 
     // Serialize all input into a buffer
     let mut buf = Vec::new();
     buf.extend_from_slice(&id.to_bytes());
 
-    for b in B {
-        buf.extend_from_slice(b.D.compress().as_bytes());
-        buf.extend_from_slice(b.E.compress().as_bytes());
+    for public_nonce in public_nonces {
+        buf.extend_from_slice(public_nonce.D.compress().as_bytes());
+        buf.extend_from_slice(public_nonce.E.compress().as_bytes());
     }
 
     buf.extend_from_slice(msg);
@@ -32,18 +66,21 @@ pub fn binding_xmd(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
         .expect("FATAL: DST is less than 256 bytes so operation should not fail")
 }
 
-#[allow(non_snake_case)]
 /// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
-pub fn binding_compressed_xmd(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8]) -> Scalar {
+pub fn binding_compressed_xmd(
+    id: &Scalar,
+    public_nonces: &[(Compressed, Compressed)],
+    msg: &[u8],
+) -> Scalar {
     let prefix = b"WSTS/binding";
 
     // Serialize all input into a buffer
     let mut buf = Vec::new();
     buf.extend_from_slice(&id.to_bytes());
 
-    for (D, E) in B {
-        buf.extend_from_slice(D.as_bytes());
-        buf.extend_from_slice(E.as_bytes());
+    for (binding, hiding) in public_nonces {
+        buf.extend_from_slice(binding.as_bytes());
+        buf.extend_from_slice(hiding.as_bytes());
     }
 
     buf.extend_from_slice(msg);
@@ -52,34 +89,36 @@ pub fn binding_compressed_xmd(id: &Scalar, B: &[(Compressed, Compressed)], msg: 
         .expect("FATAL: DST is less than 256 bytes so operation should not fail")
 }
 
-#[allow(non_snake_case)]
-/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
-pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
+/// Compute a binding value from the party ID, public nonces, and signed message using default expansion.
+pub fn binding_default(id: &Scalar, public_nonces: &[PublicNonce], msg: &[u8]) -> Scalar {
     let mut hasher = Sha256::new();
     let prefix = "WSTS/binding";
 
     hasher.update(prefix.as_bytes());
     hasher.update(id.to_bytes());
-    for b in B {
-        hasher.update(b.D.compress().as_bytes());
-        hasher.update(b.E.compress().as_bytes());
+    for public_nonce in public_nonces {
+        hasher.update(public_nonce.D.compress().as_bytes());
+        hasher.update(public_nonce.E.compress().as_bytes());
     }
     hasher.update(msg);
 
     hash_to_scalar(&mut hasher)
 }
 
-#[allow(non_snake_case)]
-/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
-pub fn binding_compressed(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8]) -> Scalar {
+/// Compute a binding value from the party ID, public nonces, and signed message using default expansion.
+pub fn binding_compressed_default(
+    id: &Scalar,
+    public_nonces: &[(Compressed, Compressed)],
+    msg: &[u8],
+) -> Scalar {
     let mut hasher = Sha256::new();
     let prefix = "WSTS/binding";
 
     hasher.update(prefix.as_bytes());
     hasher.update(&id.to_bytes());
-    for (D, E) in B {
-        hasher.update(D.as_bytes());
-        hasher.update(E.as_bytes());
+    for (binding, hiding) in public_nonces {
+        hasher.update(binding.as_bytes());
+        hasher.update(hiding.as_bytes());
     }
     hasher.update(msg);
 
@@ -116,10 +155,15 @@ pub fn lambda(i: u32, key_ids: &[u32]) -> Scalar {
 // Is this the best way to return these values?
 #[allow(non_snake_case)]
 /// Compute the intermediate values used in both the parties and the aggregator
-pub fn intermediate(msg: &[u8], party_ids: &[u32], nonces: &[PublicNonce]) -> (Vec<Point>, Point) {
+pub fn intermediate(
+    msg: &[u8],
+    party_ids: &[u32],
+    nonces: &[PublicNonce],
+    expansion_type: ExpansionType,
+) -> (Vec<Point>, Point) {
     let rhos: Vec<Scalar> = party_ids
         .iter()
-        .map(|&i| binding(&id(i), nonces, msg))
+        .map(|&i| binding(&id(i), nonces, msg, expansion_type))
         .collect();
     let R_vec: Vec<Point> = zip(nonces, rhos)
         .map(|(nonce, rho)| nonce.D + rho * nonce.E)
@@ -135,6 +179,7 @@ pub fn aggregate_nonce(
     msg: &[u8],
     party_ids: &[u32],
     nonces: &[PublicNonce],
+    expansion_type: ExpansionType,
 ) -> Result<Point, PointError> {
     let compressed_nonces: Vec<(Compressed, Compressed)> = nonces
         .iter()
@@ -145,7 +190,7 @@ pub fn aggregate_nonce(
         .flat_map(|&i| {
             [
                 Scalar::from(1),
-                binding_compressed(&id(i), &compressed_nonces, msg),
+                binding_compressed(&id(i), &compressed_nonces, msg, expansion_type),
             ]
         })
         .collect();

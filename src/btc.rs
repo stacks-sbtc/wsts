@@ -228,7 +228,7 @@ impl UnsignedTx {
 mod test {
     use super::*;
     use crate::{
-        compute,
+        compute::{self, ExpansionType},
         taproot::{test_helpers, SchnorrProof},
         traits::{Aggregator, Signer},
         v2,
@@ -385,7 +385,13 @@ mod test {
 
         let (nonces, sig_shares) =
             test_helpers::sign_schnorr(message, &mut signing_set, &mut OsRng);
-        let proof = match sig_agg.sign_schnorr(message, &nonces, &sig_shares, &key_ids) {
+        let proof = match sig_agg.sign_schnorr(
+            message,
+            &nonces,
+            &sig_shares,
+            &key_ids,
+            ExpansionType::Default,
+        ) {
             Err(e) => panic!("Aggregator sign failed: {e:?}"),
             Ok(proof) => proof,
         };
@@ -560,11 +566,17 @@ mod test {
         let message: &[u8] = sighash.as_ref();
         let (nonces, sig_shares) =
             test_helpers::sign(message, &mut signing_set, &mut OsRng, raw_merkle_root);
-        let proof =
-            match sig_agg.sign_taproot(message, &nonces, &sig_shares, &key_ids, raw_merkle_root) {
-                Err(e) => panic!("Aggregator sign failed: {e:?}"),
-                Ok(proof) => proof,
-            };
+        let proof = match sig_agg.sign_taproot(
+            message,
+            &nonces,
+            &sig_shares,
+            &key_ids,
+            raw_merkle_root,
+            ExpansionType::Default,
+        ) {
+            Err(e) => panic!("Aggregator sign failed: {e:?}"),
+            Ok(proof) => proof,
+        };
         // now ser/de the proof
         let proof_bytes = proof.to_bytes();
         let proof_deser = SchnorrProof::from(proof_bytes);

@@ -7,6 +7,7 @@ use std::fmt;
 
 use crate::{
     common::{MerkleRoot, Nonce, PolyCommitment, PublicNonce, Signature, SignatureShare},
+    compute::ExpansionType,
     curve::{point::Point, scalar::Scalar},
     errors::{AggregatorError, DkgError},
     taproot::SchnorrProof,
@@ -112,6 +113,7 @@ pub trait Signer: Clone + Debug + PartialEq {
         signer_ids: &[u32],
         key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> (Vec<Point>, Point);
 
     /// Validate that signer_id owns party_id
@@ -128,6 +130,7 @@ pub trait Signer: Clone + Debug + PartialEq {
         signer_ids: &[u32],
         key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> Vec<SignatureShare>;
 
     /// Sign `msg` using all this signer's keys
@@ -137,6 +140,7 @@ pub trait Signer: Clone + Debug + PartialEq {
         signer_ids: &[u32],
         key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> Vec<SignatureShare>;
 
     /// Sign `msg` using all this signer's keys and a tweaked public key
@@ -147,6 +151,7 @@ pub trait Signer: Clone + Debug + PartialEq {
         key_ids: &[u32],
         nonces: &[PublicNonce],
         merkle_root: Option<MerkleRoot>,
+        expansion_type: ExpansionType,
     ) -> Vec<SignatureShare>;
 }
 
@@ -165,6 +170,7 @@ pub trait Aggregator: Clone + Debug + PartialEq {
         nonces: &[PublicNonce],
         sig_shares: &[SignatureShare],
         key_ids: &[u32],
+        expansion_type: ExpansionType,
     ) -> Result<Signature, AggregatorError>;
 
     /// Check and aggregate the signature shares into a BIP-340 `SchnorrProof`.
@@ -175,6 +181,7 @@ pub trait Aggregator: Clone + Debug + PartialEq {
         nonces: &[PublicNonce],
         sig_shares: &[SignatureShare],
         key_ids: &[u32],
+        expansion_type: ExpansionType,
     ) -> Result<SchnorrProof, AggregatorError>;
 
     /// Check and aggregate the signature shares into a BIP-340 `SchnorrProof` with BIP-341 key tweaks
@@ -187,6 +194,7 @@ pub trait Aggregator: Clone + Debug + PartialEq {
         sig_shares: &[SignatureShare],
         key_ids: &[u32],
         merkle_root: Option<MerkleRoot>,
+        expansion_type: ExpansionType,
     ) -> Result<SchnorrProof, AggregatorError>;
 }
 

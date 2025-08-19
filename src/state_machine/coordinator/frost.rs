@@ -698,6 +698,7 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                     shares,
                     &key_ids,
                     merkle_root,
+                    self.config.expansion_type,
                 )?;
                 debug!(
                     r = %schnorr_proof.r,
@@ -706,9 +707,13 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 );
                 self.schnorr_proof = Some(schnorr_proof);
             } else if let SignatureType::Schnorr = signature_type {
-                let schnorr_proof =
-                    self.aggregator
-                        .sign_schnorr(&self.message, &nonces, shares, &key_ids)?;
+                let schnorr_proof = self.aggregator.sign_schnorr(
+                    &self.message,
+                    &nonces,
+                    shares,
+                    &key_ids,
+                    self.config.expansion_type,
+                )?;
                 debug!(
                     r = %schnorr_proof.r,
                     s = %schnorr_proof.s,
@@ -716,9 +721,13 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 );
                 self.schnorr_proof = Some(schnorr_proof);
             } else {
-                let signature = self
-                    .aggregator
-                    .sign(&self.message, &nonces, shares, &key_ids)?;
+                let signature = self.aggregator.sign(
+                    &self.message,
+                    &nonces,
+                    shares,
+                    &key_ids,
+                    self.config.expansion_type,
+                )?;
                 debug!(
                     R = %signature.R,
                     z = %signature.z,
@@ -745,7 +754,12 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             .values()
             .flat_map(|pn| pn.nonces.clone())
             .collect::<Vec<PublicNonce>>();
-        let (_, R) = compute::intermediate(&self.message, &party_ids, &nonces);
+        let (_, R) = compute::intermediate(
+            &self.message,
+            &party_ids,
+            &nonces,
+            self.config.expansion_type,
+        );
 
         R
     }

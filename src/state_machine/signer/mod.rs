@@ -12,6 +12,7 @@ use crate::{
         check_public_shares, validate_key_id, validate_signer_id, PolyCommitment, PublicNonce,
         TupleProof,
     },
+    compute::ExpansionType,
     curve::{
         ecdsa,
         point::{Error as PointError, Point, G},
@@ -166,6 +167,8 @@ pub struct SavedState {
     kex_private_key: Scalar,
     /// Ephemeral public keys for key exchange indexed by key_id
     kex_public_keys: HashMap<u32, Point>,
+    /// How to expand the binding value when hashing
+    pub expansion_type: ExpansionType,
 }
 
 impl fmt::Debug for SavedState {
@@ -249,6 +252,8 @@ pub struct Signer<SignerType: SignerTrait> {
     kex_private_key: Scalar,
     /// Ephemeral public keys for key exchange indexed by key_id
     kex_public_keys: HashMap<u32, Point>,
+    /// How to expand the binding value when hashing
+    pub expansion_type: ExpansionType,
 }
 
 impl<SignerType: SignerTrait> fmt::Debug for Signer<SignerType> {
@@ -288,6 +293,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
         network_private_key: Scalar,
         public_keys: PublicKeys,
         rng: &mut R,
+        expansion_type: ExpansionType,
     ) -> Result<Self, Error> {
         if total_signers > total_keys {
             return Err(Error::Config(ConfigError::InsufficientKeys));
@@ -348,6 +354,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             coordinator_public_key: None,
             kex_private_key: Scalar::random(rng),
             kex_public_keys: Default::default(),
+            expansion_type,
         })
     }
 
@@ -379,6 +386,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             coordinator_public_key: state.coordinator_public_key,
             kex_private_key: state.kex_private_key,
             kex_public_keys: state.kex_public_keys.clone(),
+            expansion_type: state.expansion_type,
         }
     }
 
@@ -410,6 +418,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             coordinator_public_key: self.coordinator_public_key,
             kex_private_key: self.kex_private_key,
             kex_public_keys: self.kex_public_keys.clone(),
+            expansion_type: self.expansion_type,
         }
     }
 
@@ -806,15 +815,25 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             let signer_ids = signer_id_set.into_iter().collect::<Vec<_>>();
             let msg = &sign_request.message;
             let signature_shares = match sign_request.signature_type {
-                SignatureType::Taproot(merkle_root) => {
+                SignatureType::Taproot(merkle_root) => self.signer.sign_taproot(
+                    msg,
+                    &signer_ids,
+                    &key_ids,
+                    &nonces,
+                    merkle_root,
+                    self.expansion_type,
+                ),
+                SignatureType::Schnorr => self.signer.sign_schnorr(
+                    msg,
+                    &signer_ids,
+                    &key_ids,
+                    &nonces,
+                    self.expansion_type,
+                ),
+                SignatureType::Frost => {
                     self.signer
-                        .sign_taproot(msg, &signer_ids, &key_ids, &nonces, merkle_root)
+                        .sign(msg, &signer_ids, &key_ids, &nonces, self.expansion_type)
                 }
-                SignatureType::Schnorr => {
-                    self.signer
-                        .sign_schnorr(msg, &signer_ids, &key_ids, &nonces)
-                }
-                SignatureType::Frost => self.signer.sign(msg, &signer_ids, &key_ids, &nonces),
             };
 
             self.signer.gen_nonces(&self.network_private_key, rng);
@@ -1228,6 +1247,7 @@ pub mod test {
                 Default::default(),
                 Default::default(),
                 &mut rng,
+                ExpansionType::Default,
             ),
             Err(Error::Config(ConfigError::InsufficientKeys))
         ));
@@ -1244,6 +1264,7 @@ pub mod test {
                 Default::default(),
                 Default::default(),
                 &mut rng,
+                ExpansionType::Default,
             ),
             Err(Error::Config(ConfigError::InvalidThreshold))
         ));
@@ -1260,6 +1281,7 @@ pub mod test {
                 Default::default(),
                 Default::default(),
                 &mut rng,
+                ExpansionType::Default,
             ),
             Err(Error::Config(ConfigError::InvalidThreshold))
         ));
@@ -1276,6 +1298,7 @@ pub mod test {
                 Default::default(),
                 Default::default(),
                 &mut rng,
+                ExpansionType::Default,
             ),
             Err(Error::Config(ConfigError::InvalidThreshold))
         ));
@@ -1292,6 +1315,7 @@ pub mod test {
                 Default::default(),
                 Default::default(),
                 &mut rng,
+                ExpansionType::Default,
             ),
             Err(Error::Config(ConfigError::InvalidThreshold))
         ));
@@ -1308,6 +1332,7 @@ pub mod test {
                 Default::default(),
                 Default::default(),
                 &mut rng,
+                ExpansionType::Default,
             ),
             Err(Error::Config(ConfigError::InvalidSignerId(4)))
         ));
@@ -1324,6 +1349,7 @@ pub mod test {
                 Default::default(),
                 Default::default(),
                 &mut rng,
+                ExpansionType::Default,
             ),
             Err(Error::Config(ConfigError::InvalidKeyId(0)))
         ));
@@ -1340,6 +1366,7 @@ pub mod test {
                 Default::default(),
                 Default::default(),
                 &mut rng,
+                ExpansionType::Default,
             ),
             Err(Error::Config(ConfigError::InvalidKeyId(5)))
         ));
@@ -1372,9 +1399,19 @@ pub mod test {
         key_ids.insert(1);
         public_keys.signer_key_ids.insert(0, key_ids);
 
-        let mut signer =
-            Signer::<SignerType>::new(1, 1, 1, 1, 0, vec![1], private_key, public_keys, &mut rng)
-                .unwrap();
+        let mut signer = Signer::<SignerType>::new(
+            1,
+            1,
+            1,
+            1,
+            0,
+            vec![1],
+            private_key,
+            public_keys,
+            &mut rng,
+            ExpansionType::Default,
+        )
+        .unwrap();
         let comms: Vec<(u32, PolyCommitment)> = signer
             .signer
             .get_poly_commitments(&ctx, &mut rng)
@@ -1435,6 +1472,7 @@ pub mod test {
             Default::default(),
             Default::default(),
             &mut rng,
+            ExpansionType::Default,
         )
         .unwrap();
         // publich_shares_done starts out as false
@@ -1544,9 +1582,19 @@ pub mod test {
         key_ids2.insert(2);
         public_keys.signer_key_ids.insert(1, key_ids2);
 
-        let mut signer =
-            Signer::<v2::Signer>::new(1, 1, 2, 2, 0, vec![1], private_key, public_keys, &mut rng)
-                .unwrap();
+        let mut signer = Signer::<v2::Signer>::new(
+            1,
+            1,
+            2,
+            2,
+            0,
+            vec![1],
+            private_key,
+            public_keys,
+            &mut rng,
+            ExpansionType::Default,
+        )
+        .unwrap();
 
         let public_share = DkgPublicShares {
             dkg_id: 0,
@@ -1605,9 +1653,19 @@ pub mod test {
         key_ids.insert(1);
         public_keys.signer_key_ids.insert(0, key_ids);
 
-        let mut signer =
-            Signer::<SignerType>::new(1, 1, 1, 1, 0, vec![1], private_key, public_keys, &mut rng)
-                .unwrap();
+        let mut signer = Signer::<SignerType>::new(
+            1,
+            1,
+            1,
+            1,
+            0,
+            vec![1],
+            private_key,
+            public_keys,
+            &mut rng,
+            ExpansionType::Default,
+        )
+        .unwrap();
         signer.verify_packet_sigs = false;
         // can_dkg_end starts out as false
         assert!(!signer.can_dkg_end());
@@ -1688,6 +1746,7 @@ pub mod test {
             Default::default(),
             Default::default(),
             &mut rng,
+            ExpansionType::Default,
         )
         .unwrap();
 

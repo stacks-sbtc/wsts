@@ -8,7 +8,7 @@ use tracing::warn;
 
 use crate::{
     common::{check_public_shares, Nonce, PolyCommitment, PublicNonce, Signature, SignatureShare},
-    compute,
+    compute::{self, ExpansionType},
     curve::{
         point::{Point, G},
         scalar::Scalar,
@@ -213,8 +213,9 @@ impl Party {
         party_ids: &[u32],
         key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> SignatureShare {
-        self.sign_with_tweak(msg, party_ids, key_ids, nonces, None)
+        self.sign_with_tweak(msg, party_ids, key_ids, nonces, None, expansion_type)
     }
 
     /// Sign `msg` with this party's shares of the group private key, using the set of `party_ids`, `key_ids` and corresponding `nonces` with a tweaked public key. The posible values for tweak are
@@ -229,6 +230,7 @@ impl Party {
         key_ids: &[u32],
         nonces: &[PublicNonce],
         tweak: Option<Scalar>,
+        expansion_type: ExpansionType,
     ) -> SignatureShare {
         // When using BIP-340 32-byte public keys, we have to invert the private key if the
         // public key is odd.  But if we're also using BIP-341 tweaked keys, we have to do
@@ -252,9 +254,10 @@ impl Party {
         } else {
             self.group_key
         };
-        let (_, R) = compute::intermediate(msg, party_ids, nonces);
+        let (_, R) = compute::intermediate(msg, party_ids, nonces, expansion_type);
         let c = compute::challenge(&tweaked_public_key, &R, msg);
-        let mut r = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
+        let mut r = &self.nonce.d
+            + &self.nonce.e * compute::binding(&self.id(), nonces, msg, expansion_type);
         if tweak.is_some() && !R.has_even_y() {
             r = -r;
         }
@@ -300,13 +303,14 @@ impl Aggregator {
         sig_shares: &[SignatureShare],
         _key_ids: &[u32],
         tweak: Option<Scalar>,
+        expansion_type: ExpansionType,
     ) -> Result<(Point, Signature), AggregatorError> {
         if nonces.len() != sig_shares.len() {
             return Err(AggregatorError::BadNonceLen(nonces.len(), sig_shares.len()));
         }
 
         let party_ids: Vec<u32> = sig_shares.iter().map(|ss| ss.id).collect();
-        let (_Rs, R) = compute::intermediate(msg, &party_ids, nonces);
+        let (_Rs, R) = compute::intermediate(msg, &party_ids, nonces, expansion_type);
         let mut z = Scalar::zero();
         let mut cx_sign = Scalar::one();
         let aggregate_public_key = self.poly[0];
@@ -351,13 +355,14 @@ impl Aggregator {
         sig_shares: &[SignatureShare],
         key_ids: &[u32],
         tweak: Option<Scalar>,
+        expansion_type: ExpansionType,
     ) -> AggregatorError {
         if nonces.len() != sig_shares.len() {
             return AggregatorError::BadNonceLen(nonces.len(), sig_shares.len());
         }
 
         let party_ids: Vec<u32> = sig_shares.iter().map(|ss| ss.id).collect();
-        let (Rs, R) = compute::intermediate(msg, &party_ids, nonces);
+        let (Rs, R) = compute::intermediate(msg, &party_ids, nonces, expansion_type);
         let mut bad_party_keys = Vec::new();
         let mut bad_party_sigs = Vec::new();
         let aggregate_public_key = self.poly[0];
@@ -451,13 +456,15 @@ impl traits::Aggregator for Aggregator {
         nonces: &[PublicNonce],
         sig_shares: &[SignatureShare],
         key_ids: &[u32],
+        expansion_type: ExpansionType,
     ) -> Result<Signature, AggregatorError> {
-        let (key, sig) = self.sign_with_tweak(msg, nonces, sig_shares, key_ids, None)?;
+        let (key, sig) =
+            self.sign_with_tweak(msg, nonces, sig_shares, key_ids, None, expansion_type)?;
 
         if sig.verify(&key, msg) {
             Ok(sig)
         } else {
-            Err(self.check_signature_shares(msg, nonces, sig_shares, key_ids, None))
+            Err(self.check_signature_shares(msg, nonces, sig_shares, key_ids, None, expansion_type))
         }
     }
 
@@ -468,15 +475,30 @@ impl traits::Aggregator for Aggregator {
         nonces: &[PublicNonce],
         sig_shares: &[SignatureShare],
         key_ids: &[u32],
+        expansion_type: ExpansionType,
     ) -> Result<SchnorrProof, AggregatorError> {
         let tweak = Scalar::from(0);
-        let (key, sig) = self.sign_with_tweak(msg, nonces, sig_shares, key_ids, Some(tweak))?;
+        let (key, sig) = self.sign_with_tweak(
+            msg,
+            nonces,
+            sig_shares,
+            key_ids,
+            Some(tweak),
+            expansion_type,
+        )?;
         let proof = SchnorrProof::new(&sig);
 
         if proof.verify(&key.x(), msg) {
             Ok(proof)
         } else {
-            Err(self.check_signature_shares(msg, nonces, sig_shares, key_ids, Some(tweak)))
+            Err(self.check_signature_shares(
+                msg,
+                nonces,
+                sig_shares,
+                key_ids,
+                Some(tweak),
+                expansion_type,
+            ))
         }
     }
 
@@ -488,15 +510,30 @@ impl traits::Aggregator for Aggregator {
         sig_shares: &[SignatureShare],
         key_ids: &[u32],
         merkle_root: Option<[u8; 32]>,
+        expansion_type: ExpansionType,
     ) -> Result<SchnorrProof, AggregatorError> {
         let tweak = compute::tweak(&self.poly[0], merkle_root);
-        let (key, sig) = self.sign_with_tweak(msg, nonces, sig_shares, key_ids, Some(tweak))?;
+        let (key, sig) = self.sign_with_tweak(
+            msg,
+            nonces,
+            sig_shares,
+            key_ids,
+            Some(tweak),
+            expansion_type,
+        )?;
         let proof = SchnorrProof::new(&sig);
 
         if proof.verify(&key.x(), msg) {
             Ok(proof)
         } else {
-            Err(self.check_signature_shares(msg, nonces, sig_shares, key_ids, Some(tweak)))
+            Err(self.check_signature_shares(
+                msg,
+                nonces,
+                sig_shares,
+                key_ids,
+                Some(tweak),
+                expansion_type,
+            ))
         }
     }
 }
@@ -637,8 +674,9 @@ impl traits::Signer for Party {
         signer_ids: &[u32],
         _key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> (Vec<Point>, Point) {
-        compute::intermediate(msg, signer_ids, nonces)
+        compute::intermediate(msg, signer_ids, nonces, expansion_type)
     }
 
     fn validate_party_id(
@@ -655,8 +693,9 @@ impl traits::Signer for Party {
         signer_ids: &[u32],
         key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> Vec<SignatureShare> {
-        vec![self.sign(msg, signer_ids, key_ids, nonces)]
+        vec![self.sign(msg, signer_ids, key_ids, nonces, expansion_type)]
     }
 
     fn sign_schnorr(
@@ -665,8 +704,16 @@ impl traits::Signer for Party {
         signer_ids: &[u32],
         key_ids: &[u32],
         nonces: &[PublicNonce],
+        expansion_type: ExpansionType,
     ) -> Vec<SignatureShare> {
-        vec![self.sign_with_tweak(msg, signer_ids, key_ids, nonces, Some(Scalar::from(0)))]
+        vec![self.sign_with_tweak(
+            msg,
+            signer_ids,
+            key_ids,
+            nonces,
+            Some(Scalar::from(0)),
+            expansion_type,
+        )]
     }
 
     fn sign_taproot(
@@ -676,15 +723,23 @@ impl traits::Signer for Party {
         key_ids: &[u32],
         nonces: &[PublicNonce],
         merkle_root: Option<[u8; 32]>,
+        expansion_type: ExpansionType,
     ) -> Vec<SignatureShare> {
         let tweak = compute::tweak(&self.group_key, merkle_root);
-        vec![self.sign_with_tweak(msg, signer_ids, key_ids, nonces, Some(tweak))]
+        vec![self.sign_with_tweak(
+            msg,
+            signer_ids,
+            key_ids,
+            nonces,
+            Some(tweak),
+            expansion_type,
+        )]
     }
 }
 
 /// Helper functions for tests
 pub mod test_helpers {
-    use super::Scalar;
+    use super::*;
     use crate::common::{PolyCommitment, PublicNonce};
     use crate::errors::DkgError;
     use crate::traits::Signer;
@@ -757,7 +812,7 @@ pub mod test_helpers {
             .collect();
         let shares = signers
             .iter()
-            .map(|s| s.sign(msg, &party_ids, &key_ids, &nonces))
+            .map(|s| s.sign(msg, &party_ids, &key_ids, &nonces, ExpansionType::Default))
             .collect();
 
         (nonces, shares, key_ids)
@@ -770,6 +825,7 @@ mod tests {
 
     use crate::util::create_rng;
     use crate::{
+        compute::ExpansionType,
         traits::{
             self, test_helpers::run_compute_secrets_missing_private_shares, Aggregator, Signer,
         },
@@ -847,7 +903,9 @@ mod tests {
             sig_agg.init(&comms).expect("aggregator init failed");
 
             let (nonces, sig_shares, key_ids) = v2::test_helpers::sign(msg, &mut signers, &mut rng);
-            if let Err(e) = sig_agg.sign(msg, &nonces, &sig_shares, &key_ids) {
+            if let Err(e) =
+                sig_agg.sign(msg, &nonces, &sig_shares, &key_ids, ExpansionType::Default)
+            {
                 panic!("Aggregator sign failed: {e:?}");
             }
         }
