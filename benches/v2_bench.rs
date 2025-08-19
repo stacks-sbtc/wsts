@@ -1,4 +1,5 @@
 use wsts::common::test_helpers::gen_signer_ids;
+use wsts::compute::ExpansionType;
 use wsts::traits::Aggregator;
 use wsts::v2;
 use wsts::v2::test_helpers::{dkg, sign};
@@ -102,7 +103,7 @@ pub fn bench_aggregator_sign(c: &mut Criterion) {
 
     let s = format!("v2 group sign N={N} T={T} K={K}");
     c.bench_function(&s, |b| {
-        b.iter(|| aggregator.sign(msg, &nonces, &sig_shares, &key_ids))
+        b.iter(|| aggregator.sign(msg, &nonces, &sig_shares, &key_ids, ExpansionType::Default))
     });
 }
 
