@@ -55,7 +55,7 @@ fn main() {
 
         let group_sign_start = time::Instant::now();
         let _sig = aggregator
-            .sign(msg, &nonces, &sig_shares, &[])
+            .sign(msg, &nonces, &sig_shares, &[], ExpansionType::Default)
             .expect("v1 group sign failed");
         let group_sign_time = group_sign_start.elapsed();
 

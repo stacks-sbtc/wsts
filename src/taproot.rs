@@ -377,7 +377,14 @@ mod test {
         );
         println!("sign_verify: tweaked_key.x  {}", &tweaked_public_key.x());
         let (nonces, sig_shares) = test_helpers::sign(msg, &mut S, &mut rng, merkle_root);
-        let proof = match sig_agg.sign_taproot(msg, &nonces, &sig_shares, &[], merkle_root) {
+        let proof = match sig_agg.sign_taproot(
+            msg,
+            &nonces,
+            &sig_shares,
+            &[],
+            merkle_root,
+            ExpansionType::Default,
+        ) {
             Err(e) => panic!("Aggregator sign failed: {e:?}"),
             Ok(proof) => proof,
         };
