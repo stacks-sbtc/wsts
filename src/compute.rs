@@ -115,7 +115,7 @@ pub fn binding_compressed_default(
     let prefix = "WSTS/binding";
 
     hasher.update(prefix.as_bytes());
-    hasher.update(&id.to_bytes());
+    hasher.update(id.to_bytes());
     for (binding, hiding) in public_nonces {
         hasher.update(binding.as_bytes());
         hasher.update(hiding.as_bytes());
