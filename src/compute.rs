@@ -14,7 +14,7 @@ use crate::{
 
 #[allow(non_snake_case)]
 /// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
-pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
+pub fn binding_xmd(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
     let prefix = b"WSTS/binding";
 
     // Serialize all input into a buffer
@@ -34,7 +34,7 @@ pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
 
 #[allow(non_snake_case)]
 /// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
-pub fn binding_compressed(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8]) -> Scalar {
+pub fn binding_compressed_xmd(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8]) -> Scalar {
     let prefix = b"WSTS/binding";
 
     // Serialize all input into a buffer
@@ -50,6 +50,40 @@ pub fn binding_compressed(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8
 
     expand_to_scalar(&buf, prefix)
         .expect("FATAL: DST is less than 256 bytes so operation should not fail")
+}
+
+#[allow(non_snake_case)]
+/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
+pub fn binding(id: &Scalar, B: &[PublicNonce], msg: &[u8]) -> Scalar {
+    let mut hasher = Sha256::new();
+    let prefix = "WSTS/binding";
+
+    hasher.update(prefix.as_bytes());
+    hasher.update(id.to_bytes());
+    for b in B {
+        hasher.update(b.D.compress().as_bytes());
+        hasher.update(b.E.compress().as_bytes());
+    }
+    hasher.update(msg);
+
+    hash_to_scalar(&mut hasher)
+}
+
+#[allow(non_snake_case)]
+/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
+pub fn binding_compressed(id: &Scalar, B: &[(Compressed, Compressed)], msg: &[u8]) -> Scalar {
+    let mut hasher = Sha256::new();
+    let prefix = "WSTS/binding";
+
+    hasher.update(prefix.as_bytes());
+    hasher.update(&id.to_bytes());
+    for (D, E) in B {
+        hasher.update(D.as_bytes());
+        hasher.update(E.as_bytes());
+    }
+    hasher.update(msg);
+
+    hash_to_scalar(&mut hasher)
 }
 
 #[allow(non_snake_case)]
