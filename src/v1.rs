@@ -8,7 +8,7 @@ use tracing::warn;
 
 use crate::{
     common::{check_public_shares, Nonce, PolyCommitment, PublicNonce, Signature, SignatureShare},
-    compute,
+    compute::{self, ExpansionType},
     curve::{
         point::{Point, G},
         scalar::Scalar,
