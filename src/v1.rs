@@ -221,7 +221,7 @@ impl Party {
         nonces: &[PublicNonce],
         expansion_type: ExpansionType,
     ) -> SignatureShare {
-        let (_, aggregate_nonce) = compute::intermediate(msg, signers, nonces);
+        let (_, aggregate_nonce) = compute::intermediate(msg, signers, nonces, expansion_type);
         let mut z = &self.nonce.d + &self.nonce.e * compute::binding(&self.id(), nonces, msg);
         z += compute::challenge(&self.group_key, &aggregate_nonce, msg)
             * &self.private_key

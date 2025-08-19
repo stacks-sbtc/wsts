@@ -1519,9 +1519,19 @@ pub mod test {
         key_ids2.insert(2);
         public_keys.signer_key_ids.insert(1, key_ids2);
 
-        let mut signer =
-            Signer::<v1::Signer>::new(1, 1, 2, 2, 0, vec![1], private_key, public_keys, &mut rng)
-                .unwrap();
+        let mut signer = Signer::<v1::Signer>::new(
+            1,
+            1,
+            2,
+            2,
+            0,
+            vec![1],
+            private_key,
+            public_keys,
+            &mut rng,
+            ExpansionType::Default,
+        )
+        .unwrap();
 
         let public_share = DkgPublicShares {
             dkg_id: 0,
