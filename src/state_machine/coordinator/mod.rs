@@ -567,6 +567,7 @@ pub mod test {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn setup_with_timeouts<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
         num_signers: u32,
         keys_per_signer: u32,
