@@ -1019,6 +1019,7 @@ pub mod test {
     #[cfg(feature = "with_v1")]
     use crate::v1;
     use crate::{
+        compute::ExpansionType,
         curve::scalar::Scalar,
         net::{DkgBegin, Message, NonceRequest, Packet, SignatureShareResponse, SignatureType},
         schnorr::ID,
@@ -1162,7 +1163,8 @@ pub mod test {
     fn dkg_public_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
         let ctx = 0u64.to_be_bytes();
         let mut rng = create_rng();
-        let (coordinators, _) = setup::<FrostCoordinator<Aggregator>, Signer>(2, 1);
+        let (coordinators, _) =
+            setup::<FrostCoordinator<Aggregator>, Signer>(2, 1, ExpansionType::Default);
         let mut coordinator: FrostCoordinator<Aggregator> = coordinators[0].clone();
 
         coordinator.start_dkg_round(None).unwrap(); // = State::DkgPublicGather;
@@ -1230,7 +1232,8 @@ pub mod test {
 
     /// test basic insertion and detection of duplicates for DkgPrivateShares
     fn dkg_private_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
-        let (coordinators, _) = setup::<FrostCoordinator<Aggregator>, Signer>(2, 1);
+        let (coordinators, _) =
+            setup::<FrostCoordinator<Aggregator>, Signer>(2, 1, ExpansionType::Default);
         let mut coordinator: FrostCoordinator<Aggregator> = coordinators[0].clone();
 
         coordinator.state = State::DkgPrivateGather;
@@ -1285,7 +1288,8 @@ pub mod test {
     /// test basic insertion and detection of duplicates for NonceResponse
     fn nonce_response<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
         let mut rng = create_rng();
-        let (coordinators, _) = setup::<FrostCoordinator<Aggregator>, Signer>(2, 1);
+        let (coordinators, _) =
+            setup::<FrostCoordinator<Aggregator>, Signer>(2, 1, ExpansionType::Default);
         let mut coordinator: FrostCoordinator<Aggregator> = coordinators[0].clone();
         let signature_type = SignatureType::Frost;
         let message = vec![0u8];
@@ -1351,7 +1355,8 @@ pub mod test {
     #[allow(dead_code)]
     fn sig_share<Aggregator: AggregatorTrait, Signer: SignerTrait>() {
         let mut rng = create_rng();
-        let (coordinators, _) = setup::<FrostCoordinator<Aggregator>, Signer>(2, 1);
+        let (coordinators, _) =
+            setup::<FrostCoordinator<Aggregator>, Signer>(2, 1, ExpansionType::Default);
         let mut coordinator = coordinators[0].clone();
         let signature_type = SignatureType::Frost;
 
@@ -1415,12 +1420,23 @@ pub mod test {
     #[test]
     #[cfg(feature = "with_v1")]
     fn run_dkg_sign_v1() {
-        run_dkg_sign::<FrostCoordinator<v1::Aggregator>, v1::Signer>(5, 2);
+        run_dkg_sign::<FrostCoordinator<v1::Aggregator>, v1::Signer>(5, 2, ExpansionType::Default);
+    }
+
+    #[test]
+    #[cfg(feature = "with_v1")]
+    fn run_dkg_sign_v1_xmd() {
+        run_dkg_sign::<FrostCoordinator<v1::Aggregator>, v1::Signer>(5, 2, ExpansionType::Xmd);
     }
 
     #[test]
     fn run_dkg_sign_v2() {
-        run_dkg_sign::<FrostCoordinator<v2::Aggregator>, v2::Signer>(5, 2);
+        run_dkg_sign::<FrostCoordinator<v2::Aggregator>, v2::Signer>(5, 2, ExpansionType::Default);
+    }
+
+    #[test]
+    fn run_dkg_sign_v2_xmd() {
+        run_dkg_sign::<FrostCoordinator<v2::Aggregator>, v2::Signer>(5, 2, ExpansionType::Xmd);
     }
 
     #[test]
@@ -1504,7 +1520,7 @@ pub mod test {
 
     #[test]
     fn process_inbound_messages_v2() {
-        run_dkg_sign::<FrostCoordinator<v2::Aggregator>, v2::Signer>(5, 2);
+        run_dkg_sign::<FrostCoordinator<v2::Aggregator>, v2::Signer>(5, 2, ExpansionType::Default);
     }
 
     #[test]
