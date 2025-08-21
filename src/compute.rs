@@ -22,7 +22,7 @@ pub enum ExpansionType {
     Xmd,
 }
 
-/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
+/// Compute a binding value from the party ID, public nonces, and signed message using the passed expansion type.
 pub fn binding(
     id: &Scalar,
     public_nonces: &[PublicNonce],
@@ -34,7 +34,7 @@ pub fn binding(
         ExpansionType::Xmd => binding_xmd(id, public_nonces, msg),
     }
 }
-/// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
+/// Compute a binding value from the party ID, public nonces, and signed message using the passed expansion type.
 pub fn binding_compressed(
     id: &Scalar,
     public_nonces: &[(Compressed, Compressed)],
