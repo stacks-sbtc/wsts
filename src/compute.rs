@@ -17,6 +17,9 @@ use crate::{
 /// $Z_q^*$".  The IETF FROST RFC, however, uses XMD message expansion, which is used when hashing
 /// to curves and their scalars/field elements in order to get a more even distribution than a raw
 /// hash would provide.
+///
+/// IETF FROST RFC: https://datatracker.ietf.org/doc/rfc9591/
+/// Hash to curve RFC: https://datatracker.ietf.org/doc/rfc9380/
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub enum ExpansionType {
     /// Expand hash directly from bytes
