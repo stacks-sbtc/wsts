@@ -12,7 +12,11 @@ use crate::{
     util::{expand_to_scalar, hash_to_scalar},
 };
 
-/// What type of message expansion to use
+/// What type of message expansion to use, i.e. how do we take a stream of bytes and turn it into
+/// a digest.  The original FROST paper simply says to use "a hash function whose outputs are in
+/// $Z_q^*$".  The IETF FROST RFC, however, uses XMD message expansion, which is used when hashing
+/// to curves and their scalars/field elements in order to get a more even distribution than a raw
+/// hash would provide.
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub enum ExpansionType {
     /// Expand hash directly from bytes
@@ -34,6 +38,7 @@ pub fn binding(
         ExpansionType::Xmd => binding_xmd(id, public_nonces, msg),
     }
 }
+
 /// Compute a binding value from the party ID, public nonces, and signed message using the passed expansion type.
 pub fn binding_compressed(
     id: &Scalar,
