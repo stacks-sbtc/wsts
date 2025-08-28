@@ -18,8 +18,9 @@ use crate::{
 /// to curves and their scalars/field elements in order to get a more even distribution than a raw
 /// hash would provide.
 ///
-/// IETF FROST RFC: https://datatracker.ietf.org/doc/rfc9591/
-/// Hash to curve RFC: https://datatracker.ietf.org/doc/rfc9380/
+/// FROST paper: https://eprint.iacr.org/2020/852.pdf
+/// FROST RFC: https://datatracker.ietf.org/doc/rfc9591/
+/// XMD RFC: https://datatracker.ietf.org/doc/rfc9380/
 #[derive(Default, Clone, Copy, Debug, PartialEq)]
 pub enum ExpansionType {
     /// Expand hash directly from bytes
