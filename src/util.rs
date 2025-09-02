@@ -17,6 +17,14 @@ pub const AES_GCM_NONCE_SIZE: usize = 12;
 /// Expands a message using the XMD (eXpandable Message Digest) method with SHA-256, and reduces
 /// the result modulo the curve order to produce a `Scalar`.
 ///
+/// The goal of XMD is to produce a uniform random byte string using a cryptographic hash function.
+/// Rather than simply using the hash function to produce output, it prefixes the output with one
+/// byte formed from hashing various parameters, a second byte from hashing the first byte with
+/// some of the same parameters, then each successive byte hashes an XOR of the two previous with
+/// similar parameters to the second.
+///
+/// RFC: https://datatracker.ietf.org/doc/rfc9380/ (section 5.3.1)
+///
 /// # Arguments
 /// - `msg`: The input message to be expanded.
 /// - `dst`: A domain separation tag (DST). Must be 255 bytes or fewer, as required by the

@@ -1,5 +1,6 @@
 use crate::{
     common::{PolyCommitment, Signature, SignatureShare},
+    compute::ExpansionType,
     curve::{
         ecdsa,
         point::{Error as PointError, Point},
@@ -155,6 +156,8 @@ pub struct Config {
     pub public_keys: PublicKeys,
     /// whether to verify the signature on Packets
     pub verify_packet_sigs: bool,
+    /// How to expand the binding value when hashing
+    pub expansion_type: ExpansionType,
 }
 
 impl fmt::Debug for Config {
@@ -196,6 +199,7 @@ impl Config {
             sign_timeout: None,
             public_keys: Default::default(),
             verify_packet_sigs: true,
+            expansion_type: ExpansionType::Default,
         }
     }
 
@@ -227,6 +231,7 @@ impl Config {
             sign_timeout,
             public_keys,
             verify_packet_sigs: true,
+            expansion_type: ExpansionType::Default,
         }
     }
 }
@@ -376,7 +381,7 @@ pub mod test {
 
     use crate::{
         common::SignatureShare,
-        compute,
+        compute::{self, ExpansionType},
         curve::{ecdsa, point::Point, point::G, scalar::Scalar},
         errors::AggregatorError,
         net::{DkgFailure, Message, Packet, SignatureShareResponse, SignatureType},
@@ -548,6 +553,7 @@ pub mod test {
     pub fn setup<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
         num_signers: u32,
         keys_per_signer: u32,
+        expansion_type: ExpansionType,
     ) -> (Vec<Coordinator>, Vec<Signer<SignerType>>) {
         setup_with_timeouts::<Coordinator, SignerType>(
             num_signers,
@@ -557,9 +563,11 @@ pub mod test {
             None,
             None,
             None,
+            expansion_type,
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn setup_with_timeouts<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
         num_signers: u32,
         keys_per_signer: u32,
@@ -568,6 +576,7 @@ pub mod test {
         dkg_end_timeout: Option<Duration>,
         nonce_timeout: Option<Duration>,
         sign_timeout: Option<Duration>,
+        expansion_type: ExpansionType,
     ) -> (Vec<Coordinator>, Vec<Signer<SignerType>>) {
         INIT.call_once(|| {
             tracing_subscriber::registry()
@@ -627,6 +636,7 @@ pub mod test {
                     *private_key,
                     public_keys.clone(),
                     &mut rng,
+                    expansion_type,
                 )
                 .unwrap();
                 signer.verify_packet_sigs = false;
@@ -650,6 +660,7 @@ pub mod test {
                     public_keys.clone(),
                 );
                 config.verify_packet_sigs = false;
+                config.expansion_type = expansion_type;
                 Coordinator::new(config)
             })
             .collect::<Vec<Coordinator>>();
@@ -738,9 +749,10 @@ pub mod test {
     pub fn run_dkg<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
         num_signers: u32,
         keys_per_signer: u32,
+        expansion_type: ExpansionType,
     ) -> (Vec<Coordinator>, Vec<Signer<SignerType>>) {
         let (mut coordinators, mut signers) =
-            setup::<Coordinator, SignerType>(num_signers, keys_per_signer);
+            setup::<Coordinator, SignerType>(num_signers, keys_per_signer, expansion_type);
 
         // We have started a dkg round
         let message = coordinators
@@ -966,9 +978,10 @@ pub mod test {
     pub fn run_dkg_sign<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
         num_signers: u32,
         keys_per_signer: u32,
+        expansion_type: ExpansionType,
     ) {
         let (mut coordinators, mut signers) =
-            run_dkg::<Coordinator, SignerType>(num_signers, keys_per_signer);
+            run_dkg::<Coordinator, SignerType>(num_signers, keys_per_signer, expansion_type);
 
         let msg = "It was many and many a year ago, in a kingdom by the sea"
             .as_bytes()
@@ -1011,7 +1024,8 @@ pub mod test {
         Coordinator: CoordinatorTrait,
         SignerType: SignerTrait,
     >() {
-        let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
+        let (coordinators, mut signers) =
+            setup::<Coordinator, SignerType>(5, 1, ExpansionType::Default);
         let mut coordinators = vec![coordinators[0].clone()];
 
         for coordinator in coordinators.iter_mut() {
@@ -1134,7 +1148,8 @@ pub mod test {
         Coordinator: CoordinatorTrait,
         SignerType: SignerTrait,
     >() {
-        let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
+        let (coordinators, mut signers) =
+            setup::<Coordinator, SignerType>(5, 1, ExpansionType::Default);
         let mut coordinators = vec![coordinators[0].clone()];
 
         for coordinator in coordinators.iter_mut() {
@@ -1175,7 +1190,8 @@ pub mod test {
         Coordinator: CoordinatorTrait,
         SignerType: SignerTrait,
     >() {
-        let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
+        let (coordinators, mut signers) =
+            setup::<Coordinator, SignerType>(5, 1, ExpansionType::Default);
         let mut coordinators = vec![coordinators[0].clone()];
 
         for coordinator in coordinators.iter_mut() {
@@ -1217,7 +1233,8 @@ pub mod test {
         Coordinator: CoordinatorTrait,
         SignerType: SignerTrait,
     >() {
-        let (coordinators, mut signers) = setup::<Coordinator, SignerType>(5, 1);
+        let (coordinators, mut signers) =
+            setup::<Coordinator, SignerType>(5, 1, ExpansionType::Default);
         let mut coordinators = vec![coordinators[0].clone()];
 
         for coordinator in coordinators.iter_mut() {
@@ -1262,8 +1279,11 @@ pub mod test {
         signature_type: SignatureType,
         bad_parties: Vec<u32>,
     ) {
-        let (mut coordinators, mut signers) =
-            run_dkg::<Coordinator, SignerType>(num_signers, keys_per_signer);
+        let (mut coordinators, mut signers) = run_dkg::<Coordinator, SignerType>(
+            num_signers,
+            keys_per_signer,
+            ExpansionType::Default,
+        );
 
         let msg = "It was many and many a year ago, in a kingdom by the sea"
             .as_bytes()
@@ -1353,7 +1373,7 @@ pub mod test {
         keys_per_signer: u32,
     ) {
         let (coordinators, signers) =
-            setup::<Coordinator, SignerType>(num_signers, keys_per_signer);
+            setup::<Coordinator, SignerType>(num_signers, keys_per_signer, ExpansionType::Default);
 
         let loaded_coordinators = coordinators
             .iter()
@@ -1379,8 +1399,11 @@ pub mod test {
     ) {
         let mut rng = OsRng;
 
-        let (mut coordinators, mut signers) =
-            run_dkg::<Coordinator, SignerType>(num_signers, keys_per_signer);
+        let (mut coordinators, mut signers) = run_dkg::<Coordinator, SignerType>(
+            num_signers,
+            keys_per_signer,
+            ExpansionType::Default,
+        );
 
         let msg = "It was many and many a year ago, in a kingdom by the sea"
             .as_bytes()
@@ -1448,8 +1471,11 @@ pub mod test {
         num_signers: u32,
         keys_per_signer: u32,
     ) {
-        let (mut coordinators, mut signers) =
-            run_dkg::<Coordinator, SignerType>(num_signers, keys_per_signer);
+        let (mut coordinators, mut signers) = run_dkg::<Coordinator, SignerType>(
+            num_signers,
+            keys_per_signer,
+            ExpansionType::Default,
+        );
 
         let msg = "It was many and many a year ago, in a kingdom by the sea"
             .as_bytes()
@@ -1547,8 +1573,11 @@ pub mod test {
         num_signers: u32,
         keys_per_signer: u32,
     ) {
-        let (mut coordinators, mut signers) =
-            run_dkg::<Coordinator, SignerType>(num_signers, keys_per_signer);
+        let (mut coordinators, mut signers) = run_dkg::<Coordinator, SignerType>(
+            num_signers,
+            keys_per_signer,
+            ExpansionType::Default,
+        );
 
         let msg = "It was many and many a year ago, in a kingdom by the sea"
             .as_bytes()
@@ -1675,7 +1704,7 @@ pub mod test {
         keys_per_signer: u32,
     ) {
         let (mut coordinators, mut signers) =
-            setup::<Coordinator, SignerType>(num_signers, keys_per_signer);
+            setup::<Coordinator, SignerType>(num_signers, keys_per_signer, ExpansionType::Default);
 
         // We have started a dkg round
         let message = coordinators
@@ -1779,7 +1808,7 @@ pub mod test {
         keys_per_signer: u32,
     ) {
         let (mut coordinators, mut signers) =
-            setup::<Coordinator, SignerType>(num_signers, keys_per_signer);
+            setup::<Coordinator, SignerType>(num_signers, keys_per_signer, ExpansionType::Default);
 
         // We have started a dkg round
         let message = coordinators

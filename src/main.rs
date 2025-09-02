@@ -2,7 +2,10 @@ use std::{env, time};
 
 #[cfg(feature = "with_v1")]
 use wsts::v1;
-use wsts::{common::test_helpers::gen_signer_ids, traits::Aggregator, util::create_rng, v2};
+use wsts::{
+    common::test_helpers::gen_signer_ids, compute::ExpansionType, traits::Aggregator,
+    util::create_rng, v2,
+};
 
 #[allow(non_snake_case)]
 fn main() {
@@ -52,7 +55,7 @@ fn main() {
 
         let group_sign_start = time::Instant::now();
         let _sig = aggregator
-            .sign(msg, &nonces, &sig_shares, &[])
+            .sign(msg, &nonces, &sig_shares, &[], ExpansionType::Default)
             .expect("v1 group sign failed");
         let group_sign_time = group_sign_start.elapsed();
 
@@ -88,7 +91,7 @@ fn main() {
 
         let group_sign_start = time::Instant::now();
         let _sig = aggregator
-            .sign(msg, &nonces, &sig_shares, &key_ids)
+            .sign(msg, &nonces, &sig_shares, &key_ids, ExpansionType::Default)
             .expect("v2 group sign failed");
         let group_sign_time = group_sign_start.elapsed();
 
