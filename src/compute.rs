@@ -57,6 +57,7 @@ pub fn binding_compressed(
 }
 
 /// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
+/// XMD RFC: https://datatracker.ietf.org/doc/rfc9380/
 pub fn binding_xmd(id: &Scalar, public_nonces: &[PublicNonce], msg: &[u8]) -> Scalar {
     let prefix = b"WSTS/binding";
 
@@ -76,6 +77,7 @@ pub fn binding_xmd(id: &Scalar, public_nonces: &[PublicNonce], msg: &[u8]) -> Sc
 }
 
 /// Compute a binding value from the party ID, public nonces, and signed message using XMD-based expansion.
+/// XMD RFC: https://datatracker.ietf.org/doc/rfc9380/
 pub fn binding_compressed_xmd(
     id: &Scalar,
     public_nonces: &[(Compressed, Compressed)],
