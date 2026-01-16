@@ -46,7 +46,7 @@ jobs:
 
       - name: Upload Artifact
         id: upload_artifact
-        uses: stacks-sbtc/actions/github-pages/upload-pages-artifact@505c42b153ba2ac261c276e96bc5dc7b68d61039
+        uses: stacks-sbtc/actions/github-pages/upload-pages-artifact@ed353a33594a2fa97ea6702d838e4a935cce374d
         with:
           path: './target/doc/'
 
