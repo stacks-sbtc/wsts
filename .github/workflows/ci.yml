@@ -19,11 +19,11 @@ jobs:
     steps:
       - name: Checkout Repository
         id: checkout_repository
-        uses: stacks-sbtc/actions/checkout@main
+        uses: stacks-sbtc/actions/checkout@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Setup Rust
         id: setup_rust
-        uses: stacks-sbtc/actions/setup-rust-toolchain@main
+        uses: stacks-sbtc/actions/setup-rust-toolchain@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Cargo Check
         id: cargo_check
@@ -36,11 +36,11 @@ jobs:
     steps:
       - name: Checkout Repository
         id: checkout_repository
-        uses: stacks-sbtc/actions/checkout@main
+        uses: stacks-sbtc/actions/checkout@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Setup Rust
         id: setup_rust
-        uses: stacks-sbtc/actions/setup-rust-toolchain@main
+        uses: stacks-sbtc/actions/setup-rust-toolchain@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Cargo Test
         id: cargo_test
@@ -54,11 +54,11 @@ jobs:
     steps:
       - name: Checkout Repository
         id: checkout_repository
-        uses: stacks-sbtc/actions/checkout@main
+        uses: stacks-sbtc/actions/checkout@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Setup Rust
         id: setup_rust
-        uses: stacks-sbtc/actions/setup-rust-toolchain@main
+        uses: stacks-sbtc/actions/setup-rust-toolchain@505c42b153ba2ac261c276e96bc5dc7b68d61039
         with:
           components: rustfmt
 
@@ -73,11 +73,11 @@ jobs:
     steps:
       - name: Checkout Repository
         id: checkout_repository
-        uses: stacks-sbtc/actions/checkout@main
+        uses: stacks-sbtc/actions/checkout@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Setup Rust
         id: setup_rust
-        uses: stacks-sbtc/actions/setup-rust-toolchain@main
+        uses: stacks-sbtc/actions/setup-rust-toolchain@505c42b153ba2ac261c276e96bc5dc7b68d61039
         with:
           components: clippy
 
@@ -94,11 +94,11 @@ jobs:
     steps:
       - name: Checkout Repository
         id: checkout_repository
-        uses: stacks-sbtc/actions/checkout@main
+        uses: stacks-sbtc/actions/checkout@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Setup Rust
         id: setup_rust
-        uses: stacks-sbtc/actions/setup-rust-toolchain@main
+        uses: stacks-sbtc/actions/setup-rust-toolchain@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Install LaTeX
         id: install_latex
@@ -110,14 +110,14 @@ jobs:
 
       - name: Upload PDF
         id: upload_pdf
-        uses: stacks-sbtc/actions/upload-artifact@main
+        uses: stacks-sbtc/actions/upload-artifact@505c42b153ba2ac261c276e96bc5dc7b68d61039
         with:
           name: wsts.pdf
           path: wsts.pdf
 
       - name: Upload Website
         id: upload_website
-        uses: stacks-sbtc/actions/upload-artifact@main
+        uses: stacks-sbtc/actions/upload-artifact@505c42b153ba2ac261c276e96bc5dc7b68d61039
         with:
           name: website
           path: ./target/doc/

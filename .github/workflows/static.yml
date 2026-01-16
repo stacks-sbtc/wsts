@@ -30,11 +30,11 @@ jobs:
     steps:
       - name: Checkout Repository
         id: checkout_repository
-        uses: stacks-sbtc/actions/checkout@main
+        uses: stacks-sbtc/actions/checkout@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Setup Pages
         id: setup_pages
-        uses: stacks-sbtc/actions/github-pages/configure-pages@main
+        uses: stacks-sbtc/actions/github-pages/configure-pages@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Install LaTeX
         id: install_latex
@@ -46,10 +46,10 @@ jobs:
 
       - name: Upload Artifact
         id: upload_artifact
-        uses: stacks-sbtc/actions/github-pages/upload-pages-artifact@main
+        uses: stacks-sbtc/actions/github-pages/upload-pages-artifact@505c42b153ba2ac261c276e96bc5dc7b68d61039
         with:
           path: './target/doc/'
 
       - name: Deploy to GitHub Pages
         id: deploy_pages
-        uses: stacks-sbtc/actions/github-pages/deploy-pages@main
+        uses: stacks-sbtc/actions/github-pages/deploy-pages@505c42b153ba2ac261c276e96bc5dc7b68d61039
