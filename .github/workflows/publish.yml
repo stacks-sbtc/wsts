@@ -15,11 +15,11 @@ jobs:
     steps:
       - name: Checkout Repository
         id: checkout_repository
-        uses: stacks-sbtc/actions/checkout@main
+        uses: stacks-sbtc/actions/checkout@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Setup Rust
         id: setup_rust
-        uses: stacks-sbtc/actions/setup-rust-toolchain@main
+        uses: stacks-sbtc/actions/setup-rust-toolchain@505c42b153ba2ac261c276e96bc5dc7b68d61039
 
       - name: Cargo Publish
         id: cargo_publish

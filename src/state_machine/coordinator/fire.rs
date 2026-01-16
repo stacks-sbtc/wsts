@@ -1523,7 +1523,7 @@ pub mod test {
         v2,
     };
     use hashbrown::HashMap;
-    use std::{thread, time::Duration};
+    use std::{slice::from_ref, thread, time::Duration};
 
     #[test]
     #[cfg(feature = "with_v1")]
@@ -2124,7 +2124,7 @@ pub mod test {
         let (outbound_messages, operation_results) = feedback_messages(
             &mut minimum_coordinators,
             &mut minimum_signers,
-            &[message.clone()],
+            from_ref(&message),
         );
 
         assert!(outbound_messages.is_empty());
@@ -2205,7 +2205,7 @@ pub mod test {
         let (outbound_messages, operation_results) = feedback_messages(
             &mut minimum_coordinators,
             &mut minimum_signers,
-            &[message.clone()],
+            from_ref(&message),
         );
 
         assert!(outbound_messages.is_empty());
@@ -2368,7 +2368,7 @@ pub mod test {
         let (outbound_messages, operation_results) = feedback_messages(
             &mut insufficient_coordinators,
             &mut insufficient_signers,
-            &[message.clone()],
+            from_ref(&message),
         );
 
         // Failed to get an aggregate public key
