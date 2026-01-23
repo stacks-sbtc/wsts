@@ -1162,7 +1162,14 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
             let shares = message_nonce
                 .public_nonces
                 .iter()
-                .flat_map(|(i, _)| self.signature_shares[i].clone())
+                .flat_map(|(i, _)| {
+                    if let Some(shares) = self.signature_shares.get(i) {
+                        shares.clone()
+                    } else {
+                        warn!(sign_id = %self.current_sign_id, signer_id = %i, "Have nonces but no signature shares from signer");
+                        vec![]
+                    }
+                })
                 .collect::<Vec<SignatureShare>>();
 
             debug!(
