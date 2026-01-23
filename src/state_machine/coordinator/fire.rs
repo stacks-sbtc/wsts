@@ -499,16 +499,25 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 return Ok(());
             }
 
-            self.dkg_wait_signer_ids
+            let waiting = self
+                .dkg_wait_signer_ids
                 .remove(&dkg_public_shares.signer_id);
 
-            self.dkg_public_shares
-                .insert(dkg_public_shares.signer_id, dkg_public_shares.clone());
-            debug!(
-                dkg_id = %dkg_public_shares.dkg_id,
-                signer_id = %dkg_public_shares.signer_id,
-                "DkgPublicShares received"
-            );
+            if waiting {
+                self.dkg_public_shares
+                    .insert(dkg_public_shares.signer_id, dkg_public_shares.clone());
+                debug!(
+                    dkg_id = %dkg_public_shares.dkg_id,
+                    signer_id = %dkg_public_shares.signer_id,
+                    "DkgPublicShares received"
+                );
+            } else {
+                warn!(
+                    dkg_id = %dkg_public_shares.dkg_id,
+                    signer_id = %dkg_public_shares.signer_id,
+                    "Got DkgPublicShares from signer who we weren't waiting on"
+                );
+            }
         }
 
         if self.dkg_wait_signer_ids.is_empty() {
@@ -546,16 +555,25 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
                 return Ok(());
             }
 
-            self.dkg_wait_signer_ids
+            let waiting = self
+                .dkg_wait_signer_ids
                 .remove(&dkg_private_shares.signer_id);
 
-            self.dkg_private_shares
-                .insert(dkg_private_shares.signer_id, dkg_private_shares.clone());
-            info!(
-                dkg_id = %dkg_private_shares.dkg_id,
-                signer_id = %dkg_private_shares.signer_id,
-                "DkgPrivateShares received"
-            );
+            if waiting {
+                self.dkg_private_shares
+                    .insert(dkg_private_shares.signer_id, dkg_private_shares.clone());
+                info!(
+                    dkg_id = %dkg_private_shares.dkg_id,
+                    signer_id = %dkg_private_shares.signer_id,
+                    "DkgPrivateShares received"
+                );
+            } else {
+                warn!(
+                    dkg_id = %dkg_private_shares.dkg_id,
+                    signer_id = %dkg_private_shares.signer_id,
+                    "Got DkgPrivateShares from signer who we weren't waiting on"
+                );
+            }
         }
 
         if self.dkg_wait_signer_ids.is_empty() {
@@ -794,8 +812,15 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
     fn dkg_end_gathered(&mut self) -> Result<(), Error> {
         // Cache the polynomials used in DKG for the aggregator
         for signer_id in self.dkg_private_shares.keys() {
-            for (party_id, comm) in &self.dkg_public_shares[signer_id].comms {
-                self.party_polynomials.insert(*party_id, comm.clone());
+            if let Some(dkg_public_shares) = &self.dkg_public_shares.get(signer_id) {
+                for (party_id, comm) in &dkg_public_shares.comms {
+                    self.party_polynomials.insert(*party_id, comm.clone());
+                }
+            } else {
+                warn!(
+                    signer_id = %signer_id,
+                    "No DkgPublicShares from signer who sent DkgPrivateShares"
+                );
             }
         }
 
@@ -803,7 +828,13 @@ impl<Aggregator: AggregatorTrait> Coordinator<Aggregator> {
         let key = self
             .dkg_end_messages
             .keys()
-            .flat_map(|signer_id| self.dkg_public_shares[signer_id].comms.clone())
+            .flat_map(|signer_id| {
+                if let Some(dkg_public_shares) = self.dkg_public_shares.get(signer_id) {
+                    dkg_public_shares.comms.clone()
+                } else {
+                    vec![]
+                }
+            })
             .fold(Point::default(), |s, (_, comm)| s + comm.poly[0]);
 
         info!("Aggregate public key: {key}");
@@ -1620,10 +1651,17 @@ pub mod test {
             msg: Message::DkgPublicShares(public_shares.clone()),
             sig: Default::default(),
         };
+
+        // check that shares are ignored if not waiting on that signer
+        coordinator.dkg_wait_signer_ids.insert(1);
+        coordinator.gather_public_shares(&packet).unwrap();
+        assert_eq!(0, coordinator.dkg_public_shares.len());
+
+        coordinator.dkg_wait_signer_ids.insert(0);
         coordinator.gather_public_shares(&packet).unwrap();
         assert_eq!(1, coordinator.dkg_public_shares.len());
 
-        // check that a duplicate public share is ignored
+        // check that a duplicate public share is ignored even if the state machine is tricked into waiting on it
         let dup_public_shares = DkgPublicShares {
             dkg_id: 0,
             signer_id: 0,
@@ -1641,6 +1679,7 @@ pub mod test {
             sig: Default::default(),
         };
 
+        coordinator.dkg_wait_signer_ids.insert(0);
         coordinator.gather_public_shares(&dup_packet).unwrap();
         assert_eq!(1, coordinator.dkg_public_shares.len());
         assert_eq!(
@@ -1682,10 +1721,17 @@ pub mod test {
             msg: Message::DkgPrivateShares(private_share.clone()),
             sig: Default::default(),
         };
+
+        // check that shares are ignored if not waiting on that signer
+        coordinator.dkg_wait_signer_ids.insert(1);
+        coordinator.gather_private_shares(&packet).unwrap();
+        assert_eq!(0, coordinator.dkg_private_shares.len());
+
+        coordinator.dkg_wait_signer_ids.insert(0);
         coordinator.gather_private_shares(&packet).unwrap();
         assert_eq!(1, coordinator.dkg_private_shares.len());
 
-        // check that a duplicate private share is ignored
+        // check that a duplicate private share is ignored even if the state machine is tricked into waiting for it
         let dup_private_share = DkgPrivateShares {
             dkg_id: 0,
             signer_id: 0,
@@ -1695,6 +1741,7 @@ pub mod test {
             msg: Message::DkgPrivateShares(dup_private_share.clone()),
             sig: Default::default(),
         };
+        coordinator.dkg_wait_signer_ids.insert(0);
         coordinator.gather_private_shares(&packet).unwrap();
         assert_eq!(1, coordinator.dkg_private_shares.len());
         assert_eq!(
