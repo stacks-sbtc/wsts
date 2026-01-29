@@ -52,6 +52,10 @@ impl fmt::Debug for Party {
 impl Party {
     /// Construct a random Party with the passed ID and parameters
     pub fn new<RNG: RngCore + CryptoRng>(id: u32, n: u32, t: u32, rng: &mut RNG) -> Self {
+        // create a nonce using just the passed RNG to avoid having a zero nonce used against us
+        let secret_key = Scalar::random(rng);
+        let nonce = Nonce::random(&secret_key, rng);
+
         Self {
             id,
             num_keys: n,
@@ -60,7 +64,7 @@ impl Party {
             private_key: Scalar::zero(),
             public_key: Point::zero(),
             group_key: Point::zero(),
-            nonce: Nonce::zero(),
+            nonce,
         }
     }
 

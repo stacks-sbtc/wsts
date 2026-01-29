@@ -60,6 +60,10 @@ impl Party {
         threshold: u32,
         rng: &mut RNG,
     ) -> Self {
+        // create a nonce using just the passed RNG to avoid having a zero nonce used against us
+        let secret_key = Scalar::random(rng);
+        let nonce = Nonce::random(&secret_key, rng);
+
         Self {
             party_id,
             key_ids: key_ids.to_vec(),
@@ -69,7 +73,7 @@ impl Party {
             f: Some(VSS::random_poly(threshold - 1, rng)),
             private_keys: Default::default(),
             group_key: Point::zero(),
-            nonce: Nonce::zero(),
+            nonce,
         }
     }
 

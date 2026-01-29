@@ -313,7 +313,7 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
 
         public_keys.validate(total_signers, total_keys)?;
 
-        let signer = SignerType::new(
+        let mut signer = SignerType::new(
             signer_id,
             &key_ids,
             total_signers,
@@ -321,6 +321,10 @@ impl<SignerType: SignerTrait> Signer<SignerType> {
             threshold,
             rng,
         );
+
+        // immediately generate nonces with good entropy to avoid protocol attacks
+        signer.gen_nonces(&network_private_key, rng);
+
         debug!("new Signer for signer_id {signer_id} with key_ids {key_ids:?}");
         Ok(Self {
             dkg_id: 0,
