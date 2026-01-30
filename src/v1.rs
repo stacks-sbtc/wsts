@@ -866,7 +866,8 @@ mod tests {
         let mut signer = v1::Signer::new(id, &key_ids, n, t, &mut rng);
 
         for party in &signer.parties {
-            assert!(party.nonce.is_zero());
+            assert!(!party.nonce.is_zero());
+            assert!(party.nonce.is_valid());
         }
 
         let nonces = signer.gen_nonces(&secret_key, &mut rng);
@@ -875,6 +876,7 @@ mod tests {
 
         for party in &signer.parties {
             assert!(!party.nonce.is_zero());
+            assert!(party.nonce.is_valid());
         }
     }
 
