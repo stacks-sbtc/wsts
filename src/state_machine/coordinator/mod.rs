@@ -1877,4 +1877,111 @@ pub mod test {
             );
         }
     }
+
+    use crate::btc::UnsignedTx;
+
+    use bitcoin::{
+        blockdata::script::Builder,
+        opcodes::all::*,
+        secp256k1::{schnorr, Secp256k1, XOnlyPublicKey},
+        taproot::{self, LeafVersion, TaprootBuilder},
+        TapSighashType, Witness,
+    };
+
+    /// Create a taproot transaction with key and script spends, then sign/verify each spend path
+    pub fn btc_sign_verify<Coordinator: CoordinatorTrait, SignerType: SignerTrait>(
+        num_signers: u32,
+        keys_per_signer: u32,
+    ) {
+        let (mut coordinators, mut signers) =
+            run_dkg::<Coordinator, SignerType>(num_signers, keys_per_signer);
+
+        let aggregate_public_key = coordinators[0]
+            .get_aggregate_public_key()
+            .expect("public key");
+        let aggregate_xonly_key = XOnlyPublicKey::from_slice(&aggregate_public_key.x().to_bytes())
+            .expect("failed to create XOnlyPublicKey");
+
+        let secp = Secp256k1::new();
+        let script = Builder::new()
+            .push_x_only_key(&aggregate_xonly_key)
+            .push_opcode(OP_CHECKSIG)
+            .into_script();
+        let spend_info = TaprootBuilder::new()
+            .add_leaf(0, script.clone())
+            .unwrap()
+            .finalize(&secp, aggregate_xonly_key)
+            .expect("failed to finalize taproot_spend_info");
+        let merkle_root = spend_info.merkle_root();
+        let internal_key = spend_info.internal_key();
+        let unsigned = UnsignedTx::new(internal_key);
+
+        // test the key spend
+        let sighash = unsigned
+            .compute_sighash(&secp, merkle_root)
+            .expect("failed to compute taproot sighash");
+        let msg: &[u8] = sighash.as_ref();
+
+        let raw_merkle_root = merkle_root.map(|root| {
+            let bytes: [u8; 32] = *root.to_raw_hash().as_ref();
+            bytes
+        });
+
+        let OperationResult::SignTaproot(proof) = run_sign::<Coordinator, SignerType>(
+            &mut coordinators,
+            &mut signers,
+            msg,
+            SignatureType::Taproot(raw_merkle_root),
+        ) else {
+            panic!("taproot signature failed");
+        };
+
+        let schnorr_sig = schnorr::Signature::from_slice(&proof.to_bytes())
+            .expect("Failed to parse Signature from slice");
+        let taproot_sig = taproot::Signature {
+            signature: schnorr_sig,
+            sighash_type: TapSighashType::All,
+        };
+
+        unsigned
+            .verify_signature(&secp, &taproot_sig, merkle_root)
+            .expect("signature verification failed");
+
+        // test the script spend
+        let sighash = unsigned
+            .compute_script_sighash(&secp, merkle_root, &script)
+            .expect("failed to compute taproot sighash");
+        let msg: &[u8] = sighash.as_ref();
+
+        let OperationResult::SignSchnorr(proof) = run_sign::<Coordinator, SignerType>(
+            &mut coordinators,
+            &mut signers,
+            msg,
+            SignatureType::Schnorr,
+        ) else {
+            panic!("schnorr signature failed");
+        };
+
+        let schnorr_sig = schnorr::Signature::from_slice(&proof.to_bytes())
+            .expect("Failed to parse Signature from slice");
+        let taproot_sig = taproot::Signature {
+            signature: schnorr_sig,
+            sighash_type: TapSighashType::All,
+        };
+
+        let control_block = spend_info
+            .control_block(&(script.clone(), LeafVersion::TapScript))
+            .expect("insert the accept script into the control block");
+
+        println!("ControlBlock {control_block:?}");
+
+        let mut witness = Witness::new();
+        witness.push(taproot_sig.to_vec());
+        witness.push(script.as_bytes());
+        witness.push(control_block.serialize());
+
+        unsigned
+            .verify_witness(&secp, witness, merkle_root)
+            .expect("signature verification failed");
+    }
 }
