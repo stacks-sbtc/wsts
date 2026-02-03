@@ -60,6 +60,10 @@ impl Party {
         threshold: u32,
         rng: &mut RNG,
     ) -> Self {
+        // create a nonce using just the passed RNG to avoid having a zero nonce used against us
+        let secret_key = Scalar::random(rng);
+        let nonce = Nonce::random(&secret_key, rng);
+
         Self {
             party_id,
             key_ids: key_ids.to_vec(),
@@ -69,7 +73,7 @@ impl Party {
             f: Some(VSS::random_poly(threshold - 1, rng)),
             private_keys: Default::default(),
             group_key: Point::zero(),
-            nonce: Nonce::zero(),
+            nonce,
         }
     }
 
@@ -767,14 +771,39 @@ pub mod test_helpers {
 #[cfg(test)]
 mod tests {
     use hashbrown::{HashMap, HashSet};
+    use num_traits::Zero;
 
     use crate::util::create_rng;
     use crate::{
+        curve::scalar::Scalar,
         traits::{
             self, test_helpers::run_compute_secrets_missing_private_shares, Aggregator, Signer,
         },
         v2,
     };
+
+    #[test]
+    fn signer_gen_nonces() {
+        let mut rng = create_rng();
+        let secret_key = Scalar::random(&mut rng);
+        let id = 1;
+        let key_ids = [1, 2, 3];
+        let n: u32 = 10;
+        let p: u32 = 3;
+        let t: u32 = 7;
+
+        let mut signer = v2::Signer::new(id, &key_ids, p, n, t, &mut rng);
+
+        assert!(!signer.nonce.is_zero());
+        assert!(signer.nonce.is_valid());
+
+        let nonces = signer.gen_nonces(&secret_key, &mut rng);
+
+        assert_eq!(nonces.len(), 1);
+
+        assert!(!signer.nonce.is_zero());
+        assert!(signer.nonce.is_valid());
+    }
 
     #[test]
     fn party_save_load() {
