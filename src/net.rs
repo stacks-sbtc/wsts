@@ -154,6 +154,7 @@ impl Signable for DkgPublicShares {
         hasher.update("DKG_PUBLIC_SHARES".as_bytes());
         hasher.update(self.dkg_id.to_be_bytes());
         hasher.update(self.signer_id.to_be_bytes());
+        hasher.update(self.kex_public_key.compress().as_bytes());
         for (party_id, comm) in &self.comms {
             hasher.update(party_id.to_be_bytes());
             for a in &comm.poly {
@@ -749,6 +750,20 @@ mod test {
             &test_config.coordinator_public_key
         ));
         assert!(signer_packet_dkg_public_shares.verify(
+            &test_config.public_keys,
+            &test_config.coordinator_public_key
+        ));
+
+        // change the kex_public_key but keep the previous signature
+        let mitm_signer_packet_dkg_public_shares = Packet {
+            sig: signer_packet_dkg_public_shares.sig,
+            msg: Message::DkgPublicShares(DkgPublicShares {
+                kex_public_key: Point::from(Scalar::random(&mut rng)),
+                ..public_shares
+            }),
+        };
+        // packet should no longer verify
+        assert!(!mitm_signer_packet_dkg_public_shares.verify(
             &test_config.public_keys,
             &test_config.coordinator_public_key
         ));
